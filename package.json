@@ -1,0 +1,71 @@
+{
+  "name": "nextjs-template",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "author": {
+    "name": "Khushal Agarwal",
+    "email": "starkhush5@gmail.com"
+  },
+  "engines": {
+    "node": ">=20.20.2"
+  },
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "preview": "next build && next start",
+    "lint": "eslint . && tsc --noEmit",
+    "lint:fix": "eslint . --fix",
+    "type-check": "tsc --noEmit",
+    "ui": "bunx shadcn@latest",
+    "fmt:check": "prettier --check \"**/*.{ts,tsx,mdx,json}\" --cache",
+    "fmt": "prettier --write \"**/*.{ts,tsx,mdx,json}\" --cache --experimental-ternaries",
+    "clean": "rm -rf .next",
+    "cleani": "rm -rf .next && rm -rf node_modules && bun i",
+    "prepare": "husky",
+    "validate": "eslint . && tsc --noEmit && prettier --check \"**/*.{ts,tsx,mdx,json}\" --cache && next build"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.577.0",
+    "next": "^16.2.9",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "tailwind-merge": "^3.6.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
+    "@next/eslint-plugin-next": "^16.2.9",
+    "@tailwindcss/postcss": "^4.3.1",
+    "@total-typescript/ts-reset": "^0.6.1",
+    "@types/node": "^22.20.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "babel-plugin-react-compiler": "^19.0.0-beta-ebf51a3-20250411",
+    "eslint": "^10.5.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-compiler": "^19.0.0-beta-ebf51a3-20250411",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "postcss": "^8.5.15",
+    "prettier": "^3.8.4",
+    "prettier-plugin-tailwindcss": "^0.8.0",
+    "tailwind-animate": "^0.2.10",
+    "tailwindcss": "^4.3.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.61.1"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix"
+    ],
+    "*.{ts,tsx,mdx,json}": [
+      "prettier --write"
+    ]
+  },
+  "overrides": {
+    "zod-validation-error": "^5.0.0"
+  }
+}
