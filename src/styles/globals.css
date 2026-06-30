@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tailwind-animate";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Custom theme: fonts use CSS variables from next/font (applied on body) */
 @theme {
   --font-inter: var(--font-inter), ui-sans-serif, system-ui, sans-serif;

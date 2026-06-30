@@ -1,12 +1,18 @@
 {
-  "name": "Next.js Starter Template",
-  "short_name": "Next.js Template",
-  "description": "A minimal Next.js 16 starter with TypeScript, Tailwind CSS v4, ESLint 9, Prettier, and Husky.",
+  "name": "Git Visualizer & Playground",
+  "short_name": "Git Visualizer",
+  "description": "An interactive simulator that visualizes Git concepts through live actions, animations, and a simulated terminal.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
   "orientation": "portrait-primary",
-  "icons": []
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
 }

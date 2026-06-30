@@ -112,8 +112,11 @@ export const metadata: Metadata = {
     creator: siteConfig.twitter.handle,
   },
   icons: {
-    icon: [{ rel: "icon", url: "/favicon.ico" }],
-    apple: [{ url: "/favicon.ico" }],
+    icon: [
+      { rel: "icon", url: "/favicon.ico" },
+      { rel: "icon", type: "image/png", url: "/icon.png" },
+    ],
+    apple: [{ url: "/icon.png" }],
   },
   manifest: "/site.webmanifest",
   category: "technology",
