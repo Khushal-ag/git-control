@@ -58,7 +58,7 @@ export function Navbar() {
   };
 
   return (
-    <nav className="dark:border-zinc-850 relative z-30 flex h-16 w-full items-center justify-between border-b border-zinc-200 bg-white/70 px-6 backdrop-blur-md transition-colors duration-300 dark:bg-zinc-950/70">
+    <nav className="relative z-30 flex h-16 w-full items-center justify-between border-b border-zinc-200 bg-white/70 px-6 backdrop-blur-md transition-colors duration-300 dark:border-zinc-800 dark:bg-zinc-950/70">
       {/* Brand Logo */}
       <div className="flex items-center gap-3 select-none">
         <Image
@@ -88,7 +88,7 @@ export function Navbar() {
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="dark:border-zinc-805 flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3.5 py-1 text-sm font-semibold text-zinc-800 transition-all select-none hover:border-zinc-300 hover:bg-zinc-100 active:scale-98 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:border-zinc-700 dark:hover:bg-zinc-800/80"
+                className="flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3.5 py-1 text-sm font-semibold text-zinc-800 transition-all select-none hover:border-zinc-300 hover:bg-zinc-100 active:scale-98 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:border-zinc-700 dark:hover:bg-zinc-800/80"
               >
                 <BookOpen className="size-4 text-orange-500" />
                 <span>{activeTitle}</span>
@@ -127,7 +127,7 @@ export function Navbar() {
                   <div className="px-2.5 py-1.5 text-[9px] font-extrabold tracking-widest text-zinc-400 uppercase dark:text-zinc-500">
                     Interactive Modules
                   </div>
-                  <div className="max-h-72 scrollbar-thin space-y-0.5 overflow-y-auto pr-0.5">
+                  <div className="scrollbar-thin max-h-72 space-y-0.5 overflow-y-auto pr-0.5">
                     {lessons.map((lesson) => {
                       const isActive = currentLessonId === lesson.id;
                       return (

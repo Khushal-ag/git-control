@@ -17,7 +17,7 @@ export function ConflictResolver() {
     // This is a great place to show the stashes, as requested by the PRD.
     return (
       <div className="flex h-full flex-col rounded-xl border border-zinc-200 bg-white p-5 font-sans transition-colors duration-300 dark:border-zinc-900 dark:bg-zinc-950">
-        <h4 className="text-xxs mb-4 flex items-center gap-1.5 font-extrabold tracking-widest text-zinc-500 uppercase">
+        <h4 className="mb-4 flex items-center gap-1.5 text-xxs font-extrabold tracking-widest text-zinc-500 uppercase">
           <FileText className="size-3.5 text-zinc-400" />
           <span>Stash Storage & Reflog</span>
         </h4>
@@ -37,9 +37,9 @@ export function ConflictResolver() {
                 {gitState.stash.map((entry, idx) => (
                   <div
                     key={entry.id}
-                    className="hover:border-zinc-350 rounded-lg border border-zinc-200 bg-zinc-50/50 p-3 transition dark:border-zinc-800 dark:bg-zinc-900/40 dark:hover:border-zinc-700"
+                    className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-3 transition hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900/40 dark:hover:border-zinc-700"
                   >
-                    <div className="text-xxs flex items-center justify-between font-bold text-zinc-600 dark:text-zinc-300">
+                    <div className="flex items-center justify-between text-xxs font-bold text-zinc-600 dark:text-zinc-300">
                       <span className="font-mono text-orange-600 dark:text-orange-400">
                         stash@&#123;{idx}&#125;
                       </span>
@@ -47,7 +47,7 @@ export function ConflictResolver() {
                         {entry.id.substring(6, 12)}
                       </span>
                     </div>
-                    <p className="text-zinc-750 mt-1 truncate text-xs dark:text-zinc-400">
+                    <p className="mt-1 truncate text-xs text-zinc-700 dark:text-zinc-400">
                       {entry.message}
                     </p>
                     <div className="mt-2 flex items-center gap-1 text-[9px] text-zinc-400 dark:text-zinc-500">
@@ -58,7 +58,7 @@ export function ConflictResolver() {
                   </div>
                 ))}
               </div>
-            : <div className="text-xxxxs rounded-lg border border-dashed border-zinc-200 py-6 text-center text-zinc-400 dark:border-zinc-800 dark:text-zinc-600">
+            : <div className="rounded-lg border border-dashed border-zinc-200 py-6 text-center text-xxxxs text-zinc-400 dark:border-zinc-800 dark:text-zinc-600">
                 Stash stack is empty. Run 'git stash' to save temporary changes.
               </div>
             }
@@ -76,7 +76,7 @@ export function ConflictResolver() {
                 {gitState.reflog.slice(0, 6).map((entry, idx) => (
                   <div
                     key={entry.id}
-                    className="text-xxxxs flex items-start gap-1.5 font-mono leading-relaxed"
+                    className="flex items-start gap-1.5 font-mono text-xxxxs leading-relaxed"
                   >
                     <span className="text-amber-600 dark:text-amber-500">
                       {entry.nextHead.substring(0, 7)}
@@ -90,7 +90,7 @@ export function ConflictResolver() {
                   </div>
                 ))}
               </div>
-            : <div className="text-xxxxs rounded-lg border border-dashed border-zinc-200 py-6 text-center text-zinc-400 dark:border-zinc-800 dark:text-zinc-600">
+            : <div className="rounded-lg border border-dashed border-zinc-200 py-6 text-center text-xxxxs text-zinc-400 dark:border-zinc-800 dark:text-zinc-600">
                 No reflog entries yet.
               </div>
             }
@@ -110,7 +110,7 @@ export function ConflictResolver() {
   const targetBranchName = match ? match[3] : "incoming branch";
 
   return (
-    <div className="border-rose-250 flex h-full flex-col rounded-xl border bg-white p-5 font-sans shadow-md shadow-rose-950/5 transition-colors duration-300 dark:border-rose-900/30 dark:bg-zinc-950">
+    <div className="flex h-full flex-col rounded-xl border border-rose-200 bg-white p-5 font-sans shadow-md shadow-rose-950/5 transition-colors duration-300 dark:border-rose-900/30 dark:bg-zinc-950">
       <div className="mb-4 flex items-center gap-2 border-b border-zinc-200 pb-3 dark:border-zinc-900">
         <div className="flex size-7 items-center justify-center rounded-lg bg-rose-500/20 text-rose-500">
           <AlertTriangle className="size-4" />
@@ -138,7 +138,7 @@ export function ConflictResolver() {
         <div className="grid min-h-[140px] flex-1 grid-cols-2 gap-3">
           {/* Ours (HEAD) */}
           <div className="flex flex-col overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50/20 dark:border-emerald-950 dark:bg-emerald-950/5">
-            <div className="text-xxs border-b border-emerald-200 bg-emerald-100 px-3 py-1.5 font-mono font-bold text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-400">
+            <div className="border-b border-emerald-200 bg-emerald-100 px-3 py-1.5 font-mono text-xxs font-bold text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-400">
               Current (HEAD / Ours)
             </div>
             <div className="flex-1 overflow-auto bg-zinc-50 p-3 font-mono text-[10px] leading-relaxed whitespace-pre text-emerald-800 dark:bg-zinc-950/60 dark:text-emerald-300">
@@ -146,7 +146,7 @@ export function ConflictResolver() {
             </div>
             <button
               onClick={() => resolveConflictVisually(activeFile.path, "ours")}
-              className="text-xxs m-2 rounded bg-emerald-500 px-2 py-1.5 font-bold text-white transition hover:bg-emerald-600"
+              className="m-2 rounded bg-emerald-500 px-2 py-1.5 text-xxs font-bold text-white transition hover:bg-emerald-600"
             >
               Accept Ours
             </button>
@@ -154,7 +154,7 @@ export function ConflictResolver() {
 
           {/* Theirs (Incoming Branch) */}
           <div className="flex flex-col overflow-hidden rounded-lg border border-purple-200 bg-purple-50/20 dark:border-purple-950 dark:bg-purple-950/5">
-            <div className="text-xxs truncate border-b border-purple-200 bg-purple-100 px-3 py-1.5 font-mono font-bold text-purple-700 dark:border-purple-900/40 dark:bg-purple-950/30 dark:text-purple-400">
+            <div className="truncate border-b border-purple-200 bg-purple-100 px-3 py-1.5 font-mono text-xxs font-bold text-purple-700 dark:border-purple-900/40 dark:bg-purple-950/30 dark:text-purple-400">
               Incoming ({targetBranchName})
             </div>
             <div className="flex-1 overflow-auto bg-zinc-50 p-3 font-mono text-[10px] leading-relaxed whitespace-pre text-purple-800 dark:bg-zinc-950/60 dark:text-purple-300">
@@ -162,7 +162,7 @@ export function ConflictResolver() {
             </div>
             <button
               onClick={() => resolveConflictVisually(activeFile.path, "theirs")}
-              className="text-xxs m-2 rounded bg-purple-500 px-2 py-1.5 font-bold text-white transition hover:bg-purple-600"
+              className="m-2 rounded bg-purple-500 px-2 py-1.5 text-xxs font-bold text-white transition hover:bg-purple-600"
             >
               Accept Theirs
             </button>

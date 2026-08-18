@@ -43,7 +43,7 @@ export function LessonPanel() {
 
   if (currentLessonId === "sandbox") {
     return (
-      <div className="dark:border-zinc-850 flex h-full flex-col justify-between border-r border-zinc-200 bg-zinc-50 p-6 text-zinc-600 transition-colors duration-300 dark:bg-zinc-950 dark:text-zinc-300">
+      <div className="flex h-full flex-col justify-between border-r border-zinc-200 bg-zinc-50 p-6 text-zinc-600 transition-colors duration-300 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
         <div className="space-y-6">
           <div className="flex items-center gap-2 text-orange-500">
             <Award className="size-5" />
@@ -68,7 +68,7 @@ export function LessonPanel() {
                 Type{" "}
                 <code
                   onClick={() => setTerminalInput("git init")}
-                  className="dark:border-zinc-850 inline-block cursor-pointer rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono whitespace-nowrap text-orange-600 transition-colors hover:bg-orange-50 hover:text-orange-700 dark:bg-zinc-950 dark:text-orange-400 dark:hover:bg-orange-950/20"
+                  className="inline-block cursor-pointer rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono whitespace-nowrap text-orange-600 transition-colors hover:bg-orange-50 hover:text-orange-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-orange-400 dark:hover:bg-orange-950/20"
                 >
                   git init
                 </code>{" "}
@@ -81,7 +81,7 @@ export function LessonPanel() {
                 Stage changes using{" "}
                 <code
                   onClick={() => setTerminalInput("git add .")}
-                  className="dark:border-zinc-850 inline-block cursor-pointer rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono whitespace-nowrap text-orange-600 transition-colors hover:bg-orange-50 hover:text-orange-700 dark:bg-zinc-950 dark:text-orange-400 dark:hover:bg-orange-950/20"
+                  className="inline-block cursor-pointer rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono whitespace-nowrap text-orange-600 transition-colors hover:bg-orange-50 hover:text-orange-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-orange-400 dark:hover:bg-orange-950/20"
                 >
                   git add .
                 </code>
@@ -93,7 +93,7 @@ export function LessonPanel() {
                   onClick={() =>
                     setTerminalInput('git commit -m "initial commit"')
                   }
-                  className="dark:border-zinc-850 inline-block cursor-pointer rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono whitespace-nowrap text-orange-600 transition-colors hover:bg-orange-50 hover:text-orange-700 dark:bg-zinc-950 dark:text-orange-400 dark:hover:bg-orange-950/20"
+                  className="inline-block cursor-pointer rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono whitespace-nowrap text-orange-600 transition-colors hover:bg-orange-50 hover:text-orange-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-orange-400 dark:hover:bg-orange-950/20"
                 >
                   git commit -m "initial commit"
                 </code>
@@ -103,7 +103,7 @@ export function LessonPanel() {
                 Create branch paths using{" "}
                 <code
                   onClick={() => setTerminalInput("git branch dev")}
-                  className="dark:border-zinc-850 inline-block cursor-pointer rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono whitespace-nowrap text-orange-600 transition-colors hover:bg-orange-50 hover:text-orange-700 dark:bg-zinc-950 dark:text-orange-400 dark:hover:bg-orange-950/20"
+                  className="inline-block cursor-pointer rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono whitespace-nowrap text-orange-600 transition-colors hover:bg-orange-50 hover:text-orange-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-orange-400 dark:hover:bg-orange-950/20"
                 >
                   git branch dev
                 </code>
@@ -114,7 +114,7 @@ export function LessonPanel() {
           </div>
         </div>
 
-        <div className="dark:text-zinc-550 shadow-xxs rounded-lg border border-zinc-200 bg-white p-4 text-center text-xs text-zinc-500 dark:border-zinc-800/50 dark:bg-zinc-900/20">
+        <div className="rounded-lg border border-zinc-200 bg-white p-4 text-center text-xs text-zinc-500 shadow-xxs dark:border-zinc-800/50 dark:bg-zinc-900/20 dark:text-zinc-500">
           Tip: You can select a structured lesson from the top navigation
           dropdown at any time!
         </div>
@@ -168,20 +168,24 @@ export function LessonPanel() {
 
   const parseInlineStyles = (text: string) => {
     return text
+      .replace(/\n/g, "<br/>")
       .replace(
         /\*\*(.*?)\*\*/g,
         '<strong class="text-zinc-900 dark:text-zinc-100 font-bold">$1</strong>',
       )
-      .replace(
-        /`(.*?)`/g,
-        '<code onclick="if(window.setTerminalInput) { window.setTerminalInput(\'$1\'); }" class="cursor-pointer hover:bg-orange-55 hover:text-orange-700 dark:hover:bg-orange-950/20 transition-all duration-150 inline-block whitespace-nowrap text-orange-650 dark:text-orange-400 font-mono bg-zinc-100 dark:bg-zinc-950 px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-850">$1</code>',
-      );
+      .replace(/`(.*?)`/g, (_, codeText) => {
+        const escaped = codeText
+          .replace(/\\/g, "\\\\")
+          .replace(/'/g, "\\'")
+          .replace(/"/g, "&quot;");
+        return `<code onclick="if(window.setTerminalInput) { window.setTerminalInput('${escaped}'); }" class="cursor-pointer hover:bg-orange-50 hover:text-orange-700 dark:hover:bg-orange-950/20 transition-all duration-150 inline break-words text-orange-600 dark:text-orange-400 font-mono bg-zinc-100 dark:bg-zinc-950 px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-800">${codeText}</code>`;
+      });
   };
 
   return (
-    <div className="dark:border-zinc-850 flex h-full flex-col justify-between border-r border-zinc-200 bg-zinc-50 p-6 text-zinc-600 transition-colors duration-300 dark:bg-zinc-950 dark:text-zinc-300">
+    <div className="flex h-full flex-col justify-between overflow-x-hidden border-r border-zinc-200 bg-zinc-50 p-6 text-zinc-600 transition-colors duration-300 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
       {/* Lesson Heading and description */}
-      <div className="space-y-5 overflow-y-auto pr-1">
+      <div className="space-y-5 overflow-x-hidden overflow-y-auto pr-1">
         <div className="flex items-center justify-between">
           <span className="rounded border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-semibold text-orange-600 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-400">
             {lesson.category}
@@ -238,7 +242,7 @@ export function LessonPanel() {
                 onClick={() => {
                   setTerminalInput(step.commandPreset || "");
                 }}
-                className="text-zinc-650 mt-3 flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-200 bg-zinc-100 px-2.5 py-1 text-xs font-medium transition hover:bg-zinc-200 active:scale-95 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                className="mt-3 flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-200 bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-200 active:scale-95 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
               >
                 <Play className="size-3 text-orange-500" />
                 <span>Autofill Command</span>
@@ -257,27 +261,28 @@ export function LessonPanel() {
               {step.quiz.options.map((opt, idx) => {
                 const isSelected = quizAnsweredIdx === idx;
                 const isCorrect = step.quiz!.answerIdx === idx;
-                const answered = quizAnsweredIdx !== null;
+                // Only lock the quiz once the correct answer has been found;
+                // a wrong pick should stay retryable in place instead of
+                // permanently disabling every option.
+                const isSolved = quizAnsweredIdx === step.quiz!.answerIdx;
 
                 let btnStyle =
                   "border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/50 dark:hover:bg-zinc-800 dark:text-zinc-300 cursor-pointer";
-                if (answered) {
-                  if (isCorrect) {
-                    btnStyle =
-                      "border-emerald-500/30 bg-emerald-50 text-emerald-600 font-medium dark:bg-emerald-950/25 dark:text-emerald-400";
-                  } else if (isSelected) {
-                    btnStyle =
-                      "border-rose-500/30 bg-rose-50 text-rose-600 dark:bg-rose-950/25 dark:text-rose-400";
-                  } else {
-                    btnStyle =
-                      "border-zinc-100 bg-zinc-50 text-zinc-400 opacity-60 dark:border-zinc-800/60 dark:bg-zinc-900/20 dark:text-zinc-500 cursor-not-allowed";
-                  }
+                if (isSolved && isCorrect) {
+                  btnStyle =
+                    "border-emerald-500/30 bg-emerald-50 text-emerald-600 font-medium dark:bg-emerald-950/25 dark:text-emerald-400";
+                } else if (isSelected && !isCorrect) {
+                  btnStyle =
+                    "border-rose-500/30 bg-rose-50 text-rose-600 dark:bg-rose-950/25 dark:text-rose-400";
+                } else if (isSolved) {
+                  btnStyle =
+                    "border-zinc-100 bg-zinc-50 text-zinc-400 opacity-60 dark:border-zinc-800/60 dark:bg-zinc-900/20 dark:text-zinc-500 cursor-not-allowed";
                 }
 
                 return (
                   <button
                     key={idx}
-                    disabled={answered}
+                    disabled={isSolved}
                     onClick={() => answerQuiz(idx)}
                     className={`w-full rounded-lg border p-3 text-left text-xs transition-all duration-150 ${btnStyle}`}
                   >
@@ -288,7 +293,7 @@ export function LessonPanel() {
             </div>
 
             {quizAnsweredIdx !== null && (
-              <div className="text-zinc-650 dark:border-zinc-850 mt-4 rounded-lg border border-zinc-200 bg-zinc-100 p-3 text-xs leading-relaxed dark:bg-zinc-950 dark:text-zinc-400">
+              <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-100 p-3 text-xs leading-relaxed text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
                 <span className="mb-1 block font-bold text-zinc-800 dark:text-zinc-200">
                   {quizAnsweredIdx === step.quiz.answerIdx ?
                     "✓ Correct!"
@@ -304,18 +309,28 @@ export function LessonPanel() {
       {(() => {
         const isBackDisabled = currentStepIndex === 0;
         const isNextClickable =
-          (isObjectiveSolved || step.objective === undefined) && !isLastStep;
+          isObjectiveSolved ||
+          (step.objective === undefined && step.quiz === undefined);
 
         const backBtnClass =
           isBackDisabled ?
             "border border-zinc-200 bg-zinc-50 text-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-600 opacity-40 cursor-not-allowed"
           : "border border-orange-500/20 bg-orange-500/5 text-orange-600 hover:bg-orange-500/10 active:scale-95 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-400 dark:hover:bg-orange-500/20 cursor-pointer";
 
+        const nextBtnText =
+          isLastStep ?
+            currentLessonId === "stash" ?
+              "Finish Playground"
+            : "Next Lesson"
+          : "Next";
+
         const nextBtnClass =
           isNextClickable ?
-            isObjectiveSolved ?
-              "bg-linear-to-r from-orange-500 to-rose-600 text-white font-bold animate-pulse hover:shadow-lg hover:shadow-orange-500/25 active:scale-95 cursor-pointer"
-            : "bg-orange-500 text-white font-bold hover:bg-orange-600 active:scale-95 shadow-md shadow-orange-500/15 cursor-pointer"
+            isLastStep ?
+              "bg-linear-to-r from-emerald-500 to-teal-600 text-white font-bold hover:from-emerald-600 hover:to-teal-700 hover:shadow-lg hover:shadow-emerald-500/20 transition-all duration-200 active:scale-98 cursor-pointer"
+            : isObjectiveSolved ?
+              "bg-linear-to-r from-orange-500 to-rose-600 text-white font-bold hover:from-orange-600 hover:to-rose-700 hover:shadow-lg hover:shadow-orange-500/20 transition-all duration-200 active:scale-98 cursor-pointer"
+            : "bg-orange-500 text-white font-bold hover:bg-orange-600 transition-all duration-200 active:scale-98 shadow-md shadow-orange-500/15 cursor-pointer"
           : "border border-zinc-200 bg-zinc-100 text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-600 cursor-not-allowed opacity-50";
 
         return (
@@ -348,7 +363,7 @@ export function LessonPanel() {
               onClick={nextStep}
               className={`flex h-9 items-center gap-1.5 rounded-lg px-4 py-1 text-xs font-semibold transition-all duration-200 ${nextBtnClass}`}
             >
-              <span>Next</span>
+              <span>{nextBtnText}</span>
               <ArrowRight className="size-4" />
             </button>
           </div>

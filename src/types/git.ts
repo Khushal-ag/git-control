@@ -46,4 +46,5 @@ export interface GitState {
   stagingArea: Record<string, string>; // path -> content staged
   stash: StashEntry[];
   reflog: GitReflogEntry[];
+  mergeHead: string | null; // branch or commit ID being merged, if any
 }

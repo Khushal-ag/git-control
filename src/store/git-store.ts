@@ -86,7 +86,7 @@ export const useGitStore = create<GitStore>((set, get) => {
     quizAnsweredIdx: null,
 
     largeFonts: false,
-    theme: "dark", // default theme (will be hydrated in page client-side)
+    theme: "light", // default theme (will be hydrated in page client-side)
 
     runCommand: (command) => {
       const {
@@ -100,18 +100,52 @@ export const useGitStore = create<GitStore>((set, get) => {
       // Keep track of original state for undo
       const originalStateClone = cloneState(gitState);
 
-      const { nextState, output } = executeGitCommand(command, gitState);
+      // Split chained commands by '&&'
+      const subCommands = command.split("&&").map((cmd) => cmd.trim());
 
+      let currentGitState = gitState;
       let nextLogs = [...get().terminalLogs];
-      if (output.includes("__CLEAR__")) {
-        nextLogs = [];
-      } else {
-        nextLogs.push(`$ ${command}`);
-        output.forEach((line) => nextLogs.push(line));
+      nextLogs.push(`$ ${command}`);
+
+      for (const subCmd of subCommands) {
+        if (!subCmd) continue;
+
+        let nextState = currentGitState;
+        let output: string[] = [];
+        let error: boolean | undefined = false;
+        try {
+          ({ nextState, output, error } = executeGitCommand(
+            subCmd,
+            currentGitState,
+          ));
+        } catch (err) {
+          // A bug in the engine shouldn't silently swallow the command or
+          // crash the terminal — surface it and leave state untouched, same
+          // as a real shell reporting a failure and staying put.
+          console.error("GitControl engine error for command:", subCmd, err);
+          output = [
+            `error: internal simulator error while running '${subCmd}'`,
+            err instanceof Error ? err.message : String(err),
+          ];
+          error = true;
+        }
+        currentGitState = nextState;
+
+        if (output.includes("__CLEAR__")) {
+          nextLogs = [];
+        } else {
+          output.forEach((line) => {
+            if (line !== "__CLEAR__") nextLogs.push(line);
+          });
+        }
+
+        if (error) {
+          break; // Stop execution on error, matching real shell && logic
+        }
       }
 
       const solved = checkObjective(
-        nextState,
+        currentGitState,
         currentLessonId,
         currentStepIndex,
       );
@@ -123,7 +157,7 @@ export const useGitStore = create<GitStore>((set, get) => {
       }
 
       set({
-        gitState: nextState,
+        gitState: currentGitState,
         historyStack: [...historyStack, originalStateClone],
         redoStack: [], // clear redo
         terminalLogs: nextLogs,
@@ -211,8 +245,12 @@ export const useGitStore = create<GitStore>((set, get) => {
     selectLesson: (lessonId) => {
       const initialRepo = createInitialState();
 
-      // Preset configs for advanced lessons to bypass initial setups
-      if (
+      if (lessonId === "basics") {
+        // Basics starts with empty directory to teach creation/staging from scratch
+        initialRepo.workingDirectory = {};
+      } else if (
+        lessonId === "branching" ||
+        lessonId === "merging" ||
         lessonId === "rebase" ||
         lessonId === "recovery" ||
         lessonId === "stash"
@@ -278,11 +316,24 @@ export const useGitStore = create<GitStore>((set, get) => {
     },
 
     nextStep: () => {
-      const { currentLessonId, currentStepIndex, gitState } = get();
+      const { currentLessonId, currentStepIndex, gitState, selectLesson } =
+        get();
       if (currentLessonId === "sandbox") return;
 
       const lesson = lessons.find((l) => l.id === currentLessonId);
-      if (!lesson || currentStepIndex >= lesson.steps.length - 1) return;
+      if (!lesson) return;
+
+      if (currentStepIndex >= lesson.steps.length - 1) {
+        // Last step, load next lesson or sandbox
+        const lessonIdx = lessons.findIndex((l) => l.id === currentLessonId);
+        if (lessonIdx !== -1 && lessonIdx < lessons.length - 1) {
+          const nextLesson = lessons[lessonIdx + 1]!;
+          selectLesson(nextLesson.id);
+        } else {
+          selectLesson("sandbox");
+        }
+        return;
+      }
 
       const nextIndex = currentStepIndex + 1;
       const solved = checkObjective(gitState, currentLessonId, nextIndex);

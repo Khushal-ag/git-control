@@ -2,9 +2,27 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { Eye, GitPullRequest, RefreshCw } from "lucide-react";
+import {
+  Eye,
+  GitBranch,
+  GitPullRequest,
+  MousePointerClick,
+  RefreshCw,
+  Unlink,
+} from "lucide-react";
 
 import { useGitStore } from "@/store/git-store";
+import { cn } from "@/lib/utils";
+
+// Full literal Tailwind classnames (not derived via string concatenation) so
+// the JIT compiler can statically discover and generate them.
+const TRACK_DOT_COLORS = [
+  "bg-blue-500", // Main (track 0)
+  "bg-purple-500", // branch 1
+  "bg-emerald-500", // branch 2
+  "bg-amber-500", // branch 3
+  "bg-pink-500", // branch 4
+];
 
 export function CommitGraph() {
   const { gitState, runCommand } = useGitStore();
@@ -74,7 +92,9 @@ export function CommitGraph() {
   const activeTracks: Record<number, string> = {}; // trackIndex -> lastCommitId on that track
 
   commitsList.forEach((commit, index) => {
-    const x = index * 130 + 70;
+    // 190px gives a branch-name pill + adjacent HEAD badge enough room to
+    // clear the next commit's node before it gets drawn.
+    const x = index * 190 + 70;
     let assignedTrack = 0;
 
     // Track determination based on parents
@@ -109,7 +129,7 @@ export function CommitGraph() {
       }
     }
 
-    const y = 80 + assignedTrack * 75;
+    const y = 115 + assignedTrack * 75;
     commitCoords[commit.id] = { x, y, track: assignedTrack };
   });
 
@@ -180,31 +200,47 @@ export function CommitGraph() {
     setMenuPosition(null);
   };
 
-  const svgWidth = commitsList.length * 130 + 150;
+  const svgWidth = commitsList.length * 190 + 150;
   // Dynamic height based on max track assigned
   const maxTrack = Math.max(
     ...Object.values(commitCoords).map((c) => c.track),
     0,
   );
-  const svgHeight = 180 + maxTrack * 75;
+  const svgHeight = 220 + maxTrack * 75;
+
+  // Legend entries: one dot per branch, colored by the track its tip commit
+  // currently occupies, sorted so track 0 (main) always leads.
+  const legendBranches = Object.keys(gitState.branches)
+    .map((name) => {
+      const commitId = gitState.branches[name]?.commitId;
+      const track = commitId ? commitCoords[commitId]?.track : undefined;
+      return track === undefined ? null : { name, track };
+    })
+    .filter((entry): entry is { name: string; track: number } => entry !== null)
+    .sort((a, b) => a.track - b.track);
 
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full scrollbar-thin scrollbar-thumb-zinc-200 overflow-auto rounded-xl border border-zinc-200 bg-white transition-colors duration-300 dark:scrollbar-thumb-zinc-800 dark:border-zinc-900 dark:bg-zinc-950"
+      className="relative scrollbar-thin h-full w-full scrollbar-thumb-zinc-200 overflow-auto rounded-xl border border-zinc-200 bg-white transition-colors duration-300 dark:scrollbar-thumb-zinc-800 dark:border-zinc-900 dark:bg-zinc-950"
     >
       {/* Legend panel */}
-      <div className="text-xxs dark:border-zinc-850 shadow-xxs absolute top-3 left-4 z-10 flex gap-4 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 font-bold text-zinc-500 backdrop-blur-xs dark:bg-zinc-900/40 dark:shadow-none">
-        <span className="flex items-center gap-1.5">
-          <span className="size-2 rounded-full bg-blue-500" /> main
-        </span>
-        {maxTrack > 0 && (
-          <span className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-purple-500" /> feature
+      <div className="absolute top-3 left-4 z-10 flex flex-wrap items-center gap-x-3.5 gap-y-1 rounded-lg border border-zinc-200 bg-zinc-50/95 px-3 py-1.5 text-xxs font-bold text-zinc-500 shadow-xxs backdrop-blur-xs dark:border-zinc-800 dark:bg-zinc-900/60 dark:shadow-none">
+        {legendBranches.map(({ name, track }) => (
+          <span key={name} className="flex items-center gap-1.5">
+            <span
+              className={cn(
+                "size-2 rounded-full",
+                TRACK_DOT_COLORS[track % TRACK_DOT_COLORS.length],
+              )}
+            />
+            {name}
           </span>
-        )}
-        <span className="text-zinc-400 dark:text-zinc-500">
-          | Double-click / click commit nodes to explore actions
+        ))}
+        <span className="h-3 w-px bg-zinc-200 dark:bg-zinc-800" />
+        <span className="flex items-center gap-1.5 font-medium text-zinc-400 dark:text-zinc-500">
+          <MousePointerClick className="size-3" />
+          Click a commit node to explore actions
         </span>
       </div>
 
@@ -253,6 +289,7 @@ export function CommitGraph() {
                   cx={coords.x}
                   cy={coords.y}
                   r="18"
+                  style={{ transformOrigin: `${coords.x}px ${coords.y}px` }}
                   className="animate-ping fill-none stroke-emerald-400 stroke-2 opacity-25"
                 />
               )}
@@ -270,12 +307,13 @@ export function CommitGraph() {
                 cx={coords.x}
                 cy={coords.y}
                 r="10"
+                style={{ transformOrigin: `${coords.x}px ${coords.y}px` }}
                 onClick={(e) => handleNodeClick(e, commit.id)}
-                className={`hover:r-12 stroke-2 transition-all duration-200 hover:stroke-zinc-800 dark:hover:stroke-zinc-200 ${
+                className={`cursor-pointer stroke-2 transition-all duration-200 hover:scale-125 hover:stroke-zinc-800 dark:hover:stroke-zinc-200 ${
                   isCurrentHead ?
                     "fill-emerald-100 stroke-emerald-500 dark:fill-emerald-950 dark:stroke-emerald-400"
                   : isMerge ? "fill-rose-50 stroke-rose-500 dark:fill-zinc-950"
-                  : `fill-zinc-50 dark:fill-zinc-900 ${getTrackColor(coords!.track).replace("stroke-", "stroke-")}`
+                  : `fill-zinc-50 dark:fill-zinc-900 ${getTrackColor(coords.track)}`
                 }`}
               />
 
@@ -284,7 +322,7 @@ export function CommitGraph() {
                 x={coords.x}
                 y={coords.y + 25}
                 textAnchor="middle"
-                className="text-xxxxs fill-zinc-500 font-mono font-semibold dark:fill-zinc-400"
+                className="fill-zinc-500 font-mono text-xxxxs font-semibold dark:fill-zinc-400"
                 onClick={(e) => handleNodeClick(e, commit.id)}
               >
                 {commit.id.substring(0, 7)}
@@ -300,7 +338,9 @@ export function CommitGraph() {
           );
         })}
 
-        {/* Draw pointer labels (branches / HEAD) */}
+        {/* Draw pointer labels (branches / HEAD) as real HTML pills, so
+            width/spacing is handled by flexbox instead of a hand-estimated
+            "chars * px" formula that drifted out of sync with the text. */}
         {commitsList.map((commit) => {
           const coords = commitCoords[commit.id];
           if (!coords) return null;
@@ -311,70 +351,59 @@ export function CommitGraph() {
 
           if (pointers.length === 0 && !isHeadDirect) return null;
 
+          const ROW_HEIGHT = 30;
+          const ROW_GAP = 8;
+          const labelX = coords.x + 30;
+
           return (
             <g key={`ptr-${commit.id}`} className="select-none">
               {pointers.map((bName, pIdx) => {
-                const labelX = coords.x + 18;
-                const labelY = coords.y - 12 - pIdx * 24;
+                const rowTop =
+                  coords.y - 15 - pIdx * (ROW_HEIGHT + ROW_GAP);
+                const anchorY = rowTop + ROW_HEIGHT / 2;
                 const isBranchHeadActive = bName === activeBranch;
 
                 return (
                   <g key={bName}>
-                    {/* Connection indicator */}
-                    <line
-                      x1={coords.x}
-                      y1={coords.y}
-                      x2={labelX}
-                      y2={labelY + 8}
-                      className="stroke-dasharray-[2,2] stroke-zinc-300 stroke-1 dark:stroke-zinc-700"
+                    {/* Connector from node edge to the pill's left edge */}
+                    <path
+                      d={`M ${coords.x + 7} ${coords.y - 7} C ${coords.x + 20} ${coords.y - 7}, ${coords.x + 20} ${anchorY}, ${labelX} ${anchorY}`}
+                      strokeDasharray="1 4"
+                      strokeLinecap="round"
+                      fill="none"
+                      className="stroke-zinc-300 stroke-[1.5] transition-all duration-300 dark:stroke-zinc-700"
                     />
 
-                    {/* Branch Label Box */}
-                    <rect
+                    <foreignObject
                       x={labelX}
-                      y={labelY - 2}
-                      width={bName.length * 6 + 20}
-                      height="18"
-                      rx="4"
-                      className={`stroke-1 ${
-                        isBranchHeadActive ?
-                          "fill-emerald-50 stroke-emerald-500/30 dark:fill-emerald-950/90 dark:stroke-emerald-500/40"
-                        : "fill-zinc-100 stroke-zinc-300 dark:fill-zinc-900/90 dark:stroke-zinc-800"
-                      }`}
-                    />
-
-                    <text
-                      x={labelX + 8}
-                      y={labelY + 11}
-                      className={`font-mono text-[9px] font-bold ${
-                        isBranchHeadActive ?
-                          "fill-emerald-600 dark:fill-emerald-400"
-                        : "fill-zinc-600 dark:fill-zinc-400"
-                      }`}
+                      y={rowTop}
+                      width={260}
+                      height={ROW_HEIGHT}
+                      overflow="visible"
                     >
-                      {bName}
-                    </text>
-
-                    {/* HEAD marker attached to branch */}
-                    {isBranchHeadActive && (
-                      <g>
-                        <rect
-                          x={labelX + bName.length * 6 + 26}
-                          y={labelY - 2}
-                          width="30"
-                          height="18"
-                          rx="4"
-                          className="fill-orange-50 stroke-orange-300 stroke-1 dark:fill-orange-950/90 dark:stroke-orange-500/35"
-                        />
-                        <text
-                          x={labelX + bName.length * 6 + 32}
-                          y={labelY + 11}
-                          className="fill-orange-600 font-mono text-[9px] font-extrabold dark:fill-orange-400"
+                      <div
+                        style={{ width: "max-content" }}
+                        className="flex items-center gap-1.5"
+                      >
+                        <div
+                          className={cn(
+                            "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xxs font-bold whitespace-nowrap shadow-sm backdrop-blur-xs transition-colors duration-300",
+                            isBranchHeadActive ?
+                              "border-emerald-500/40 bg-emerald-50/90 text-emerald-600 dark:border-emerald-500/50 dark:bg-emerald-950/90 dark:text-emerald-400"
+                            : "border-zinc-200 bg-zinc-50/90 text-zinc-600 dark:border-zinc-800/80 dark:bg-zinc-900/90 dark:text-zinc-400",
+                          )}
                         >
-                          HEAD
-                        </text>
-                      </g>
-                    )}
+                          <GitBranch className="size-3 shrink-0" />
+                          <span>{bName}</span>
+                        </div>
+
+                        {isBranchHeadActive && (
+                          <div className="rounded-full border border-orange-400/40 bg-orange-50/90 px-2.5 py-1 text-xxs font-extrabold whitespace-nowrap text-orange-600 shadow-sm dark:border-orange-500/50 dark:bg-orange-950/90 dark:text-orange-400">
+                            HEAD
+                          </div>
+                        )}
+                      </div>
+                    </foreignObject>
                   </g>
                 );
               })}
@@ -382,28 +411,28 @@ export function CommitGraph() {
               {/* Detached HEAD direct tag */}
               {isHeadDirect && (
                 <g>
-                  <line
-                    x1={coords.x}
-                    y1={coords.y}
-                    x2={coords.x + 18}
-                    y2={coords.y - 12}
-                    className="stroke-zinc-300 stroke-1 dark:stroke-zinc-700"
+                  <path
+                    d={`M ${coords.x + 7} ${coords.y - 7} C ${coords.x + 20} ${coords.y - 7}, ${coords.x + 20} ${coords.y - 15}, ${labelX} ${coords.y - 15}`}
+                    strokeDasharray="1 4"
+                    strokeLinecap="round"
+                    fill="none"
+                    className="stroke-zinc-300 stroke-[1.5] transition-all duration-300 dark:stroke-zinc-700"
                   />
-                  <rect
-                    x={coords.x + 18}
-                    y={coords.y - 20}
-                    width="74"
-                    height="18"
-                    rx="4"
-                    className="stroke-rose-350 fill-rose-50 stroke-1 dark:fill-rose-950/95 dark:stroke-rose-500/35"
-                  />
-                  <text
-                    x={coords.x + 24}
-                    y={coords.y - 7}
-                    className="fill-rose-600 font-mono text-[9px] font-bold dark:fill-rose-400"
+                  <foreignObject
+                    x={labelX}
+                    y={coords.y - 15 - ROW_HEIGHT / 2}
+                    width={200}
+                    height={ROW_HEIGHT}
+                    overflow="visible"
                   >
-                    HEAD (detached)
-                  </text>
+                    <div
+                      style={{ width: "max-content" }}
+                      className="flex items-center gap-1.5 rounded-full border border-rose-400/40 bg-rose-50/90 px-2.5 py-1 text-xxs font-bold whitespace-nowrap text-rose-600 shadow-sm dark:border-rose-500/50 dark:bg-rose-950/90 dark:text-rose-400"
+                    >
+                      <Unlink className="size-3 shrink-0" />
+                      <span>HEAD (detached)</span>
+                    </div>
+                  </foreignObject>
                 </g>
               )}
             </g>
@@ -426,21 +455,21 @@ export function CommitGraph() {
           </div>
           <button
             onClick={() => handleCheckout(selectedCommitId)}
-            className="text-xxs text-zinc-650 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
+            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xxs text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
           >
             <Eye className="size-3 text-emerald-500 dark:text-emerald-400" />
             <span>git checkout</span>
           </button>
           <button
             onClick={() => handleResetHard(selectedCommitId)}
-            className="text-xxs text-zinc-650 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left font-medium hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
+            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xxs font-medium text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
           >
             <RefreshCw className="size-3 text-orange-500 dark:text-orange-400" />
             <span>git reset --hard</span>
           </button>
           <button
             onClick={() => handleCherryPick(selectedCommitId)}
-            className="text-xxs text-zinc-650 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
+            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xxs text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
           >
             <GitPullRequest className="size-3 text-purple-500 dark:text-purple-400" />
             <span>git cherry-pick</span>

@@ -67,11 +67,19 @@ export function FileExplorer() {
   const committedFiles = activeCommit ? activeCommit.files : {};
 
   // Group working directory files
-  const workingFiles = Object.values(gitState.workingDirectory);
-  const stagedFiles = Object.keys(gitState.stagingArea).map((path) => ({
-    path,
-    content: gitState.stagingArea[path],
-  }));
+  const workingFiles = Object.values(gitState.workingDirectory).filter(
+    (file) => file.state !== "staged",
+  );
+  // A file belongs in the Staging Area lane whenever its staged snapshot
+  // differs from HEAD, regardless of whether it was edited again afterwards
+  // (which flips its working-directory state to "modified" but leaves the
+  // stale staged snapshot in place, still pending for the next commit).
+  const stagedFiles = Object.keys(gitState.stagingArea)
+    .filter((path) => gitState.stagingArea[path] !== committedFiles[path])
+    .map((path) => ({
+      path,
+      content: gitState.stagingArea[path] || "",
+    }));
 
   // Helper badges mapping
   const getStateColor = (state: string) => {
@@ -107,7 +115,7 @@ export function FileExplorer() {
         {gitState.initialized && (
           <button
             onClick={() => setIsCreating(true)}
-            className="text-xxs flex items-center gap-1 rounded bg-orange-500 px-2 py-1 font-semibold text-white transition-colors hover:bg-orange-600 active:scale-95"
+            className="flex items-center gap-1 rounded bg-orange-500 px-2 py-1 text-xxs font-semibold text-white transition-colors hover:bg-orange-600 active:scale-95"
           >
             <Plus className="size-3" />
             <span>Create File</span>
@@ -116,19 +124,19 @@ export function FileExplorer() {
       </div>
 
       {/* Workspace columns */}
-      <div className="flex flex-1 scrollbar-thin scrollbar-thumb-zinc-200 divide-x divide-zinc-200 overflow-x-auto overflow-y-hidden select-none dark:scrollbar-thumb-zinc-800 dark:divide-zinc-900">
+      <div className="flex scrollbar-thin flex-1 scrollbar-thumb-zinc-200 divide-x divide-zinc-200 overflow-x-auto overflow-y-hidden select-none dark:scrollbar-thumb-zinc-800 dark:divide-zinc-900">
         {/* LANE 1: Working Directory */}
         <div className="flex w-[210px] min-w-[210px] flex-1 flex-col p-4 md:w-auto md:min-w-0">
           <div className="mb-3 flex items-center justify-between">
             <h4 className="text-xxs font-extrabold tracking-widest text-zinc-500 uppercase">
               Working Directory
             </h4>
-            <span className="text-xxxxs rounded-full bg-zinc-100 px-2 py-0.5 font-bold text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
+            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xxxxs font-bold text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
               {workingFiles.length} files
             </span>
           </div>
 
-          <div className="dark:scrollbar-thumb-zinc-850 flex-1 scrollbar-thin scrollbar-thumb-zinc-200 space-y-2 overflow-y-auto pr-0.5">
+          <div className="scrollbar-thin flex-1 scrollbar-thumb-zinc-200 space-y-2 overflow-y-auto pr-0.5 dark:scrollbar-thumb-zinc-800">
             <AnimatePresence mode="popLayout">
               {workingFiles.map((file) => {
                 const conf = isConflicting(file.content);
@@ -160,7 +168,7 @@ export function FileExplorer() {
                           <button
                             onClick={() => startEdit(file.path, file.content)}
                             title="Edit content"
-                            className="text-zinc-450 p-1 transition hover:text-zinc-800 dark:text-zinc-500 dark:hover:text-zinc-200"
+                            className="p-1 text-zinc-400 transition hover:text-zinc-800 dark:text-zinc-500 dark:hover:text-zinc-200"
                           >
                             <Edit2 className="size-3" />
                           </button>
@@ -168,7 +176,7 @@ export function FileExplorer() {
                         <button
                           onClick={() => deleteFile(file.path)}
                           title="Delete file"
-                          className="text-zinc-455 p-1 transition hover:text-rose-600 dark:text-zinc-500 dark:hover:text-rose-400"
+                          className="p-1 text-zinc-400 transition hover:text-rose-600 dark:text-zinc-500 dark:hover:text-rose-400"
                         >
                           <Trash2 className="size-3" />
                         </button>
@@ -224,7 +232,7 @@ export function FileExplorer() {
             </AnimatePresence>
 
             {workingFiles.length === 0 && (
-              <div className="text-xxxxs flex h-32 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 text-center text-zinc-400 dark:border-zinc-800 dark:text-zinc-600">
+              <div className="flex h-32 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 text-center text-xxxxs text-zinc-400 dark:border-zinc-800 dark:text-zinc-600">
                 <span>Working Directory empty</span>
               </div>
             )}
@@ -237,16 +245,16 @@ export function FileExplorer() {
             <h4 className="text-xxs font-extrabold tracking-widest text-zinc-500 uppercase">
               Staging Area
             </h4>
-            <span className="text-xxxxs rounded-full bg-zinc-100 px-2 py-0.5 font-bold text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
+            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xxxxs font-bold text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
               {stagedFiles.length} files
             </span>
           </div>
 
-          <div className="dark:scrollbar-thumb-zinc-850 flex-1 scrollbar-thin scrollbar-thumb-zinc-200 space-y-2 overflow-y-auto pr-0.5">
+          <div className="scrollbar-thin flex-1 scrollbar-thumb-zinc-200 space-y-2 overflow-y-auto pr-0.5 dark:scrollbar-thumb-zinc-800">
             <AnimatePresence mode="popLayout">
               {stagedFiles.map((file) => (
                 <motion.div
-                  layoutId={`file-card-${file.path}`}
+                  layoutId={`staging-file-card-${file.path}`}
                   key={`staged-${file.path}`}
                   className="group relative rounded-xl border border-blue-200 bg-blue-50/20 p-3 hover:shadow dark:border-blue-900/30 dark:bg-blue-950/5"
                 >
@@ -273,7 +281,7 @@ export function FileExplorer() {
             </AnimatePresence>
 
             {stagedFiles.length === 0 && (
-              <div className="text-xxxxs flex h-32 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 text-center text-zinc-400 dark:border-zinc-800 dark:text-zinc-600">
+              <div className="flex h-32 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 text-center text-xxxxs text-zinc-400 dark:border-zinc-800 dark:text-zinc-600">
                 <span>Staging Area empty</span>
               </div>
             )}
@@ -286,18 +294,18 @@ export function FileExplorer() {
             <h4 className="text-xxs font-extrabold tracking-widest text-zinc-500 uppercase">
               Local Repository
             </h4>
-            <span className="text-xxxxs rounded-full bg-zinc-100 px-2 py-0.5 font-bold text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
+            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xxxxs font-bold text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
               {Object.keys(committedFiles).length} files
             </span>
           </div>
 
-          <div className="dark:scrollbar-thumb-zinc-850 flex-1 scrollbar-thin scrollbar-thumb-zinc-200 space-y-2 overflow-y-auto pr-0.5">
+          <div className="scrollbar-thin flex-1 scrollbar-thumb-zinc-200 space-y-2 overflow-y-auto pr-0.5 dark:scrollbar-thumb-zinc-800">
             <AnimatePresence mode="popLayout">
               {Object.keys(committedFiles).map((path) => (
                 <motion.div
-                  layoutId={`file-card-${path}`}
+                  layoutId={`committed-file-card-${path}`}
                   key={`repo-${path}`}
-                  className="border-emerald-250 relative rounded-xl border bg-emerald-50/20 p-3 dark:border-emerald-900/35 dark:bg-emerald-950/5"
+                  className="relative rounded-xl border border-emerald-200 bg-emerald-50/20 p-3 dark:border-emerald-900/35 dark:bg-emerald-950/5"
                 >
                   <div className="flex items-center justify-between">
                     <div className="min-w-0 flex-1">
@@ -314,7 +322,7 @@ export function FileExplorer() {
             </AnimatePresence>
 
             {Object.keys(committedFiles).length === 0 && (
-              <div className="text-xxxxs flex h-32 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 text-center text-zinc-400 dark:border-zinc-800 dark:text-zinc-600">
+              <div className="flex h-32 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 text-center text-xxxxs text-zinc-400 dark:border-zinc-800 dark:text-zinc-600">
                 <span>No committed files in current HEAD</span>
               </div>
             )}
@@ -332,7 +340,7 @@ export function FileExplorer() {
               </h3>
               <button
                 onClick={() => setIsCreating(false)}
-                className="dark:text-zinc-505 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                className="text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
               >
                 <X className="size-4" />
               </button>
@@ -340,7 +348,7 @@ export function FileExplorer() {
 
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
-                <label className="text-xxs mb-1.5 block font-bold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                <label className="mb-1.5 block text-xxs font-bold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
                   File Name
                 </label>
                 <input
@@ -353,7 +361,7 @@ export function FileExplorer() {
               </div>
 
               <div>
-                <label className="text-xxs mb-1.5 block font-bold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                <label className="mb-1.5 block text-xxs font-bold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
                   Initial Content
                 </label>
                 <textarea
@@ -398,13 +406,13 @@ export function FileExplorer() {
               </div>
               <button
                 onClick={() => setEditingPath(null)}
-                className="hover:text-zinc-650 text-zinc-400 dark:text-zinc-500 dark:hover:text-zinc-300"
+                className="text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
               >
                 <X className="size-4" />
               </button>
             </div>
 
-            <div className="dark:border-zinc-850 relative mb-4 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 p-2 dark:bg-zinc-950">
+            <div className="relative mb-4 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-950">
               {/* Row/Line numbers mock */}
               <div className="flex font-mono text-xs select-none">
                 <div className="mr-3 border-r border-zinc-200 pr-3 text-right text-zinc-400 select-none dark:border-zinc-900 dark:text-zinc-700">
@@ -425,7 +433,7 @@ export function FileExplorer() {
               <button
                 type="button"
                 onClick={() => setEditingPath(null)}
-                className="dark:text-zinc-450 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2 text-xs font-bold text-zinc-500 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2 text-xs font-bold text-zinc-500 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
               >
                 Cancel
               </button>

@@ -8,6 +8,12 @@
   --font-inter: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-poppins: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono), ui-monospace, monospace;
+
+  --text-xxs: 0.625rem; /* 10px */
+  --text-xxxs: 0.5625rem; /* 9px */
+  --text-xxxxs: 0.5rem; /* 8px */
+
+  --shadow-xxs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
 }
 
 @layer base {
@@ -15,6 +21,36 @@
     margin-inline: auto;
     padding-inline: 1rem;
     max-width: 1280px;
+  }
+}
+
+/* Thin themed scrollbars (no plugin installed; matches the classnames used
+   throughout the workspace panels: scrollbar-thin / scrollbar-thumb-*). */
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+  }
+}
+
+@utility scrollbar-thumb-zinc-200 {
+  scrollbar-color: var(--color-zinc-200) transparent;
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--color-zinc-200);
+  }
+}
+
+@utility scrollbar-thumb-zinc-800 {
+  scrollbar-color: var(--color-zinc-800) transparent;
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--color-zinc-800);
   }
 }
 

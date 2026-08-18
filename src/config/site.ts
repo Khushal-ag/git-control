@@ -16,7 +16,7 @@ const baseUrl =
     process.env.NEXT_PUBLIC_SITE_URL.length > 0
   ) ?
     process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "")
-  : "https://git-control.khushalagarwal.tech";
+  : "https://git-control.khushalagarwal.dev";
 
 export const siteConfig = {
   /** Site name (used in metadata, OG, title template) */
@@ -33,7 +33,7 @@ export const siteConfig = {
 
   /** Authors (metadata, JSON-LD). Update for your project. */
   authors: [
-    { name: "Khushal Agarwal", url: "https://portfolio.khushalagarwal.tech" },
+    { name: "Khushal Agarwal", url: "https://portfolio.khushalagarwal.dev" },
   ],
 
   /** Creator and publisher (metadata) */

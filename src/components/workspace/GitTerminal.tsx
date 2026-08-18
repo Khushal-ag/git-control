@@ -124,21 +124,88 @@ export function GitTerminal() {
   const parseAnsiLine = (line: string) => {
     if (!line) return <span>&nbsp;</span>;
 
-    // Basic ANSI regex parser
-    // e.g. \u001b[33mText\u001b[m -> color text
+    // Check if it is a prompt line (starts with $)
+    if (line.startsWith("$ ")) {
+      const commandText = line.substring(2);
+      const commandParts = commandText.split(" ");
+      const mainCommand = commandParts[0] || "";
+      const argsText = commandParts.slice(1).join(" ");
+
+      return (
+        <span>
+          <span className="font-bold text-emerald-500 dark:text-emerald-400">
+            ${" "}
+          </span>
+          <span className="font-semibold text-sky-500 dark:text-sky-400">
+            {mainCommand}
+          </span>
+          {argsText && (
+            <span className="text-zinc-800 dark:text-[#f4f4f5]">
+              {" "}
+              {argsText}
+            </span>
+          )}
+        </span>
+      );
+    }
+
+    // Check if it is an error or fatal output line
+    if (
+      line.startsWith("fatal:") ||
+      line.toLowerCase().includes("error") ||
+      line.startsWith("CONFLICT")
+    ) {
+      return (
+        <span className="font-medium text-rose-600 dark:text-rose-400">
+          {line}
+        </span>
+      );
+    }
+
+    // Check if it is a success/info status output line
+    if (
+      line.startsWith("Initialized") ||
+      line.startsWith("Wrote to") ||
+      line.startsWith("Created file") ||
+      line.startsWith("Starting lesson") ||
+      line.startsWith("Good luck!") ||
+      line.startsWith("Successfully") ||
+      line.includes("Solved")
+    ) {
+      return (
+        <span className="font-medium text-emerald-600 dark:text-emerald-400">
+          {line}
+        </span>
+      );
+    }
+
+    // General ANSI color codes parser
+    /* eslint-disable-next-line no-control-regex */
+    const redRegex = /\u001b\[31m([\s\S]*?)\u001b\[m/g;
+    /* eslint-disable-next-line no-control-regex */
+    const greenRegex = /\u001b\[32m([\s\S]*?)\u001b\[m/g;
     /* eslint-disable-next-line no-control-regex */
     const yellowRegex = /\u001b\[33m([\s\S]*?)\u001b\[m/g;
     /* eslint-disable-next-line no-control-regex */
-    const greenRegex = /\u001b\[32m([\s\S]*?)\u001b\[m/g;
+    const blueRegex = /\u001b\[34m([\s\S]*?)\u001b\[m/g;
 
     const html = line
+      .replace(/\t/g, "&nbsp;&nbsp;&nbsp;&nbsp;")
+      .replace(
+        redRegex,
+        '<span class="text-rose-600 dark:text-rose-400 font-semibold">$1</span>',
+      )
+      .replace(
+        greenRegex,
+        '<span class="text-emerald-600 dark:text-emerald-400 font-semibold">$1</span>',
+      )
       .replace(
         yellowRegex,
         '<span class="text-amber-600 dark:text-amber-400 font-bold">$1</span>',
       )
       .replace(
-        greenRegex,
-        '<span class="text-emerald-600 dark:text-emerald-400 font-bold">$1</span>',
+        blueRegex,
+        '<span class="text-sky-600 dark:text-sky-400 font-semibold">$1</span>',
       );
 
     return <span dangerouslySetInnerHTML={{ __html: html }} />;
@@ -161,7 +228,7 @@ export function GitTerminal() {
         </div>
         {/* Centered Title */}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <span className="text-xxs font-sans font-bold tracking-wide text-zinc-500 dark:text-zinc-400">
+          <span className="font-sans text-xxs font-bold tracking-wide text-zinc-500 dark:text-zinc-400">
             zsh — gitcontrol
           </span>
         </div>
@@ -171,7 +238,7 @@ export function GitTerminal() {
       {/* Logs output area */}
       <div
         ref={scrollRef}
-        className="flex-1 scrollbar-thin scrollbar-thumb-zinc-200 space-y-1.5 overflow-y-auto p-4 select-text dark:scrollbar-thumb-zinc-800"
+        className="scrollbar-thin flex-1 scrollbar-thumb-zinc-200 space-y-1.5 overflow-y-auto p-4 select-text dark:scrollbar-thumb-zinc-800"
       >
         {terminalLogs.map((log, index) => (
           <div key={index} className="leading-relaxed whitespace-pre-wrap">
@@ -183,9 +250,9 @@ export function GitTerminal() {
       {/* Suggestion autocomplete overlay */}
       {suggestions.length > 0 && (
         <div className="relative mx-4 mb-1">
-          <div className="dark:bg-zinc-905 absolute bottom-full left-0 z-20 w-64 rounded-lg border border-zinc-200 bg-white p-1 shadow-lg shadow-zinc-200/50 backdrop-blur-xs transition-colors duration-300 dark:border-zinc-800 dark:bg-zinc-900/95 dark:shadow-black/80">
-            <div className="text-xxs text-zinc-450 mb-1 flex items-center gap-1.5 border-b border-zinc-100 px-2 py-1 font-bold dark:border-zinc-800 dark:text-zinc-500">
-              <Sparkles className="dark:text-orange-450 size-3 animate-pulse text-orange-500" />
+          <div className="absolute bottom-full left-0 z-20 w-64 rounded-lg border border-zinc-200 bg-white p-1 shadow-lg shadow-zinc-200/50 backdrop-blur-xs transition-colors duration-300 dark:border-zinc-800 dark:bg-zinc-900 dark:bg-zinc-900/95 dark:shadow-black/80">
+            <div className="mb-1 flex items-center gap-1.5 border-b border-zinc-100 px-2 py-1 text-xxs font-bold text-zinc-400 dark:border-zinc-800 dark:text-zinc-500">
+              <Sparkles className="size-3 animate-pulse text-orange-500 dark:text-orange-400" />
               <span>AUTOCOMPLETE SUGGESTIONS</span>
             </div>
             {suggestions.map((sug, idx) => (
@@ -197,14 +264,14 @@ export function GitTerminal() {
                   setSuggestions([]);
                   inputRef.current?.focus();
                 }}
-                className={`text-xxs flex w-full cursor-pointer items-center justify-between rounded px-2 py-1.5 text-left font-mono transition-colors ${
+                className={`flex w-full cursor-pointer items-center justify-between rounded px-2 py-1.5 text-left font-mono text-xxs transition-colors ${
                   idx === selSuggestionIdx ?
-                    "text-orange-650 bg-orange-500/10 font-semibold dark:bg-orange-500/20 dark:text-orange-400"
+                    "bg-orange-500/10 font-semibold text-orange-600 dark:bg-orange-500/20 dark:text-orange-400"
                   : "text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
                 }`}
               >
                 <span>{sug}</span>
-                <span className="dark:text-zinc-650 text-xxxs text-zinc-400">
+                <span className="text-xxxs text-zinc-400 dark:text-zinc-600">
                   TAB
                 </span>
               </button>

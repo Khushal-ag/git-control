@@ -37,6 +37,7 @@ export function createInitialState(): GitState {
     stagingArea: {},
     stash: [],
     reflog: [],
+    mergeHead: null,
   };
 }
 
@@ -215,42 +216,64 @@ export function executeGitCommand(
   }
 
   if (mainCmd === "echo") {
-    // Parse echo "content" > filename
-    const redirectIdx = parts.indexOf(">");
-    if (redirectIdx !== -1 && redirectIdx < parts.length - 1) {
-      const filepath = parts[parts.length - 1]!;
-      // extract text in quotes
-      const quoteMatch =
-        commandStr.match(/echo\s+["'](.*?)["']\s*>/) ||
-        commandStr.match(/echo\s+(.*?)\s*>/);
-      const text = quoteMatch ? quoteMatch[1] : "";
+    // Parse echo "content" > filename or echo "content" >> filename
+    const isAppend = parts.includes(">>");
+    const isOverwrite = parts.includes(">");
 
-      const nextWD = { ...state.workingDirectory };
-      const existing = nextWD[filepath];
+    if (isAppend || isOverwrite) {
+      const redirectSymbol = isAppend ? ">>" : ">";
+      const redirectIdx = parts.indexOf(redirectSymbol);
+      if (redirectIdx !== -1 && redirectIdx < parts.length - 1) {
+        const filepath = parts[parts.length - 1]!;
 
-      let fileState: FileState = "untracked";
-      if (existing) {
-        // If it was already staged or committed, state is modified
-        fileState =
-          (
-            existing.state === "committed" ||
-            existing.state === "staged" ||
-            existing.state === "modified"
-          ) ?
-            "modified"
-          : "untracked";
+        // Match content inside single or double quotes, or anything before the redirect symbol
+        let text = "";
+        const quoteRegex = new RegExp(
+          `echo\\s+["'](.*?)["']\\s*${redirectSymbol}`,
+        );
+        const fallbackRegex = new RegExp(`echo\\s+(.*?)\\s*${redirectSymbol}`);
+
+        const quoteMatch =
+          commandStr.match(quoteRegex) || commandStr.match(fallbackRegex);
+        if (quoteMatch) {
+          text = quoteMatch[1] || "";
+        }
+
+        const nextWD = { ...state.workingDirectory };
+        const existing = nextWD[filepath];
+
+        let fileState: FileState = "untracked";
+        let newContent = text;
+
+        if (existing) {
+          fileState =
+            (
+              existing.state === "committed" ||
+              existing.state === "staged" ||
+              existing.state === "modified"
+            ) ?
+              "modified"
+            : "untracked";
+
+          if (isAppend) {
+            newContent =
+              existing.content ? existing.content + "\n" + text : text;
+          }
+        }
+
+        nextWD[filepath] = {
+          path: filepath,
+          state: fileState,
+          content: newContent,
+        };
+
+        return {
+          nextState: { ...state, workingDirectory: nextWD },
+          output: [
+            isAppend ? `Appended to ${filepath}` : `Wrote to ${filepath}`,
+          ],
+        };
       }
-
-      nextWD[filepath] = {
-        path: filepath,
-        state: fileState,
-        content: text || "",
-      };
-
-      return {
-        nextState: { ...state, workingDirectory: nextWD },
-        output: [`Wrote to ${filepath}`],
-      };
     }
 
     // Normal echo printing
@@ -606,9 +629,13 @@ export function executeGitCommand(
 
     // Spawn commit node
     const newCommitId = generateHash();
+    const parentIds = currentHeadCommitId ? [currentHeadCommitId] : [];
+    if (state.mergeHead) {
+      parentIds.push(state.mergeHead);
+    }
     const newCommit: GitCommit = {
       id: newCommitId,
-      parentIds: currentHeadCommitId ? [currentHeadCommitId] : [],
+      parentIds,
       message: msg,
       author: "learner@git-control.dev",
       timestamp: Date.now(),
@@ -644,6 +671,7 @@ export function executeGitCommand(
       HEAD: nextHEAD,
       stagingArea: { ...committedFiles }, // Keep staging matching commit snapshot
       workingDirectory: nextWD,
+      mergeHead: null, // Clear mergeHead on commit
     };
 
     nextState.reflog = logReflog(
@@ -785,6 +813,7 @@ export function executeGitCommand(
         HEAD: newBranchName,
         stagingArea:
           currentCommitId ? { ...state.commits[currentCommitId]?.files } : {}, // populate staging
+        mergeHead: null, // Clear mergeHead on checkout
       };
 
       nextState.reflog = logReflog(
@@ -895,6 +924,7 @@ export function executeGitCommand(
       HEAD: isBranch ? target : targetCommitId,
       workingDirectory: nextWD,
       stagingArea: targetCommit ? { ...targetCommit.files } : {}, // populate staging with snapshot files
+      mergeHead: null, // Clear mergeHead on checkout/switch
     };
 
     nextState.reflog = logReflog(
@@ -968,12 +998,17 @@ export function executeGitCommand(
             content: targetCommit.files[p]!,
           };
         });
+        Object.keys(nextWD).forEach((p) => {
+          if (targetCommit.files[p] === undefined) delete nextWD[p];
+        });
       }
 
       const nextState = {
         ...state,
         branches: nextBranches,
         workingDirectory: nextWD,
+        stagingArea:
+          targetCommit ? { ...targetCommit.files } : state.stagingArea,
         HEAD: state.currentBranch || targetCommitId,
       };
 
@@ -1022,6 +1057,8 @@ export function executeGitCommand(
         ...state,
         branches: nextBranches,
         workingDirectory: nextWD,
+        stagingArea:
+          targetCommit ? { ...targetCommit.files } : state.stagingArea,
         HEAD: state.currentBranch || targetCommitId,
       };
 
@@ -1103,6 +1140,7 @@ export function executeGitCommand(
         nextState: {
           ...state,
           workingDirectory: nextWD,
+          mergeHead: targetCommitId, // Store the target commit ID as mergeHead
         },
         output: [
           "Auto-merging files...",
@@ -1145,6 +1183,7 @@ export function executeGitCommand(
       commits: nextCommits,
       branches: nextBranches,
       workingDirectory: nextWD,
+      stagingArea: { ...mergedFiles },
       HEAD: state.currentBranch || newCommitId,
     };
 
@@ -1230,10 +1269,29 @@ export function executeGitCommand(
         const activeB = nextBranches[state.currentBranch];
         if (activeB) activeB.commitId = targetCommitId;
       }
+
+      const ffTargetCommit = state.commits[targetCommitId];
+      const nextWD = { ...state.workingDirectory };
+      if (ffTargetCommit) {
+        Object.keys(ffTargetCommit.files).forEach((p) => {
+          nextWD[p] = {
+            path: p,
+            state: "committed",
+            content: ffTargetCommit.files[p]!,
+          };
+        });
+        Object.keys(nextWD).forEach((p) => {
+          if (ffTargetCommit.files[p] === undefined) delete nextWD[p];
+        });
+      }
+
       return {
         nextState: {
           ...state,
           branches: nextBranches,
+          workingDirectory: nextWD,
+          stagingArea:
+            ffTargetCommit ? { ...ffTargetCommit.files } : state.stagingArea,
           HEAD: state.currentBranch || targetCommitId,
         },
         output: [
@@ -1297,6 +1355,7 @@ export function executeGitCommand(
       commits: nextCommits,
       branches: nextBranches,
       workingDirectory: nextWD,
+      stagingArea: finalCommit ? { ...finalCommit.files } : state.stagingArea,
       HEAD: state.currentBranch || lastParentId,
     };
 
@@ -1382,6 +1441,7 @@ export function executeGitCommand(
       commits: nextCommits,
       branches: nextBranches,
       workingDirectory: nextWD,
+      stagingArea: { ...mergedFiles },
       HEAD: state.currentBranch || newHash,
     };
 
@@ -1513,6 +1573,71 @@ export function executeGitCommand(
 
   // git reset
   if (gitSub === "reset") {
+    const currentHeadCommitId =
+      (state.currentBranch ?
+        state.branches[state.currentBranch]?.commitId
+      : state.HEAD) || "";
+
+    // Check if the last argument is a pathspec (file)
+    const lastArg = parts[parts.length - 1] || "";
+    const isPathspec =
+      state.workingDirectory[lastArg] !== undefined ||
+      state.stagingArea[lastArg] !== undefined ||
+      (currentHeadCommitId &&
+        state.commits[currentHeadCommitId]?.files[lastArg] !== undefined);
+
+    if (isPathspec) {
+      const filePath = lastArg;
+      let commitExpr = "HEAD";
+      if (parts.length === 4) {
+        commitExpr = parts[2] || "HEAD";
+      }
+
+      let targetCommitId = "";
+      if (commitExpr === "HEAD") {
+        targetCommitId = currentHeadCommitId;
+      } else if (state.branches[commitExpr]) {
+        targetCommitId = state.branches[commitExpr]?.commitId || "";
+      } else if (state.commits[commitExpr]) {
+        targetCommitId = commitExpr;
+      }
+
+      const targetCommit =
+        targetCommitId ? state.commits[targetCommitId] : null;
+      const targetFiles = targetCommit ? targetCommit.files : {};
+
+      const nextStaging = { ...state.stagingArea };
+      const nextWD = { ...state.workingDirectory };
+
+      const targetContent = targetFiles[filePath];
+
+      if (targetContent === undefined) {
+        delete nextStaging[filePath];
+        const file = nextWD[filePath];
+        if (file) {
+          file.state = "untracked";
+        }
+      } else {
+        nextStaging[filePath] = targetContent;
+        const file = nextWD[filePath];
+        if (file) {
+          file.state =
+            file.content === targetContent ? "committed" : "modified";
+        }
+      }
+
+      const nextState: GitState = {
+        ...state,
+        workingDirectory: nextWD,
+        stagingArea: nextStaging,
+      };
+
+      return {
+        nextState,
+        output: [`Unstaged ${filePath}`],
+      };
+    }
+
     let mode: "soft" | "mixed" | "hard" = "mixed";
     let targetExpr = "";
 
@@ -1531,11 +1656,6 @@ export function executeGitCommand(
     } else {
       targetExpr = arg2 || "HEAD";
     }
-
-    const currentHeadCommitId =
-      (state.currentBranch ?
-        state.branches[state.currentBranch]?.commitId
-      : state.HEAD) || "";
 
     // Resolve target expressions (e.g. HEAD~1, HEAD~)
     let targetCommitId = "";
@@ -1560,6 +1680,23 @@ export function executeGitCommand(
     }
 
     if (!targetCommitId) {
+      // If target is HEAD and we have no commits, it's an unborn branch reset (empty the index)
+      if (targetExpr === "HEAD" && !currentHeadCommitId) {
+        const nextState: GitState = {
+          ...state,
+          stagingArea: {},
+        };
+        // Reset working directory states to untracked
+        Object.keys(nextState.workingDirectory).forEach((p) => {
+          const f = nextState.workingDirectory[p];
+          if (f) f.state = "untracked";
+        });
+        return {
+          nextState,
+          output: ["Unstaged all changes"],
+        };
+      }
+
       return {
         nextState: state,
         output: [`fatal: ambiguous argument '${targetExpr}': unknown revision`],
@@ -1581,6 +1718,7 @@ export function executeGitCommand(
       ...state,
       branches: nextBranches,
       HEAD: nextHEAD,
+      mergeHead: null, // Clear mergeHead on reset
     };
 
     const targetCommit = state.commits[targetCommitId];
@@ -1733,6 +1871,7 @@ export function executeGitCommand(
       commits: nextCommits,
       branches: nextBranches,
       workingDirectory: nextWD,
+      stagingArea: { ...revertedFiles },
       HEAD: state.currentBranch || newHash,
     };
 
