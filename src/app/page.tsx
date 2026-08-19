@@ -71,12 +71,12 @@ export default function App() {
         {/* Right Columns: Commit Graph, Files, Terminal + Stash */}
         <div className="flex h-auto min-w-0 flex-1 flex-col gap-4 p-4 lg:h-full">
           {/* Top: SVG Commit Graph */}
-          <div className="h-[200px] shrink-0 lg:h-[220px]">
+          <div className="h-60 shrink-0 lg:h-70">
             <CommitGraph />
           </div>
 
           {/* Middle: Lanes File system */}
-          <div className="min-h-[220px] flex-1 lg:min-h-0">
+          <div className="min-h-45 flex-1 lg:min-h-0">
             <FileExplorer />
           </div>
 

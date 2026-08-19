@@ -39,9 +39,9 @@ export default function ErrorBoundary({
           The workspace hit a snag
         </h1>
         <p className="mx-auto max-w-sm text-sm text-zinc-500 dark:text-zinc-400">
-          Something crashed while rendering. Your repository only lives in
-          this browser tab, so reloading is the fastest way back — you&apos;ll
-          just lose the current sandbox/lesson progress.
+          Something crashed while rendering. Your repository only lives in this
+          browser tab, so reloading is the fastest way back — you&apos;ll just
+          lose the current sandbox/lesson progress.
         </p>
         {error.message && (
           <p className="mx-auto max-w-sm truncate rounded border border-zinc-200 bg-zinc-100 px-2 py-1 font-mono text-xxs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">

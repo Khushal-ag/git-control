@@ -773,7 +773,12 @@ export function executeGitCommand(
 
   // git checkout or git switch
   if (gitSub === "checkout" || gitSub === "switch") {
-    const bFlagIdx = parts.indexOf("-b");
+    // Real git uses `-b` for checkout and `-c` for switch to mean the same
+    // thing (create-and-switch); accept either on both so the two commands
+    // stay fully interchangeable, matching how the lessons teach `switch`
+    // as a drop-in alternative to `checkout`.
+    const bFlagIdx =
+      parts.indexOf("-b") !== -1 ? parts.indexOf("-b") : parts.indexOf("-c");
     const target = parts[2];
 
     // Handle git checkout -b branchName
@@ -1465,7 +1470,7 @@ export function executeGitCommand(
   if (gitSub === "stash") {
     const stashCmd = parts[2];
 
-    if (stashCmd === "pop" || parts[2] === "apply") {
+    if (stashCmd === "pop" || stashCmd === "apply") {
       if (state.stash.length === 0 || !state.stash[0]) {
         return {
           nextState: state,
@@ -1475,7 +1480,9 @@ export function executeGitCommand(
       }
 
       const popped = state.stash[0];
-      const nextStash = state.stash.slice(1);
+      // `apply` restores the changes but keeps the entry on the stash stack;
+      // only `pop` removes it — the one real difference between the two.
+      const nextStash = stashCmd === "pop" ? state.stash.slice(1) : state.stash;
 
       // Restore Working Directory & Staging Area
       const nextWD = { ...state.workingDirectory };
@@ -1497,7 +1504,7 @@ export function executeGitCommand(
         },
         output: [
           `On branch ${state.currentBranch || "detached"}`,
-          `Dropped refs/stash@{0}`,
+          ...(stashCmd === "pop" ? ["Dropped refs/stash@{0}"] : []),
           `Restored stashed changes.`,
         ],
       };

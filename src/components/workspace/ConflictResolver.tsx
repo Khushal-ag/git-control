@@ -154,7 +154,7 @@ export function ConflictResolver() {
 
           {/* Theirs (Incoming Branch) */}
           <div className="flex flex-col overflow-hidden rounded-lg border border-purple-200 bg-purple-50/20 dark:border-purple-950 dark:bg-purple-950/5">
-            <div className="truncate border-b border-purple-200 bg-purple-100 px-3 py-1.5 font-mono text-xxs font-bold text-purple-700 dark:border-purple-900/40 dark:bg-purple-950/30 dark:text-purple-400">
+            <div className="border-b border-purple-200 bg-purple-100 px-3 py-1.5 font-mono text-xxs font-bold wrap-break-word text-purple-700 dark:border-purple-900/40 dark:bg-purple-950/30 dark:text-purple-400">
               Incoming ({targetBranchName})
             </div>
             <div className="flex-1 overflow-auto bg-zinc-50 p-3 font-mono text-[10px] leading-relaxed whitespace-pre text-purple-800 dark:bg-zinc-950/60 dark:text-purple-300">

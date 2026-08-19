@@ -11,8 +11,8 @@ import {
   Unlink,
 } from "lucide-react";
 
-import { useGitStore } from "@/store/git-store";
 import { cn } from "@/lib/utils";
+import { useGitStore } from "@/store/git-store";
 
 // Full literal Tailwind classnames (not derived via string concatenation) so
 // the JIT compiler can statically discover and generate them.
@@ -85,6 +85,40 @@ export function CommitGraph() {
     );
   }
 
+  // Collect active pointers pointing to each commit. Computed before layout
+  // (it doesn't depend on coordinates) so we can reserve enough vertical
+  // headroom for however many labels end up stacked on one commit.
+  const commitPointers: Record<string, string[]> = {};
+  Object.keys(gitState.branches).forEach((branchName) => {
+    const b = gitState.branches[branchName];
+    if (b && b.commitId) {
+      if (!commitPointers[b.commitId]) commitPointers[b.commitId] = [];
+      commitPointers[b.commitId]!.push(branchName);
+    }
+  });
+
+  const isDetachedHeadCommit = (commitId: string) =>
+    gitState.HEAD === commitId && !gitState.currentBranch;
+
+  const ROW_HEIGHT = 30;
+  const ROW_GAP = 8;
+
+  // Reserve extra vertical headroom above track 0 when a commit has more
+  // than 2 stacked branch/HEAD pills — otherwise a commit with many
+  // pointers (a common case: several branches all still on the same root
+  // commit) pushes labels above y=0, off the top of the SVG with no way to
+  // scroll up to reach them.
+  const maxStackedRows = Math.max(
+    1,
+    ...Object.keys(gitState.commits).map(
+      (commitId) =>
+        (commitPointers[commitId]?.length || 0) +
+        (isDetachedHeadCommit(commitId) ? 1 : 0),
+    ),
+  );
+  const topMargin =
+    maxStackedRows > 2 ? (maxStackedRows - 2) * (ROW_HEIGHT + ROW_GAP) + 20 : 0;
+
   // Position generation algorithm
   // Assign columns based on chronological order of commits
   const commitCoords: Record<string, { x: number; y: number; track: number }> =
@@ -129,20 +163,8 @@ export function CommitGraph() {
       }
     }
 
-    const y = 115 + assignedTrack * 75;
+    const y = 115 + topMargin + assignedTrack * 75;
     commitCoords[commit.id] = { x, y, track: assignedTrack };
-  });
-
-  // Collect active pointers pointing to each commit
-  const commitPointers: Record<string, string[]> = {};
-
-  // Find which commits branches point to
-  Object.keys(gitState.branches).forEach((branchName) => {
-    const b = gitState.branches[branchName];
-    if (b && b.commitId) {
-      if (!commitPointers[b.commitId]) commitPointers[b.commitId] = [];
-      commitPointers[b.commitId]!.push(branchName);
-    }
   });
 
   // Find HEAD
@@ -206,7 +228,7 @@ export function CommitGraph() {
     ...Object.values(commitCoords).map((c) => c.track),
     0,
   );
-  const svgHeight = 220 + maxTrack * 75;
+  const svgHeight = 220 + topMargin + maxTrack * 75;
 
   // Legend entries: one dot per branch, colored by the track its tip commit
   // currently occupies, sorted so track 0 (main) always leads.
@@ -231,7 +253,15 @@ export function CommitGraph() {
             <span
               className={cn(
                 "size-2 rounded-full",
-                TRACK_DOT_COLORS[track % TRACK_DOT_COLORS.length],
+                // The checked-out branch always renders emerald (node ring,
+                // fill, and its edges) regardless of track, matching the
+                // "you are here" HEAD indicator — so its legend dot needs to
+                // match that override instead of showing its raw track
+                // color, or the legend would promise a color nothing on
+                // screen actually uses.
+                name === gitState.currentBranch ?
+                  "bg-emerald-500"
+                : TRACK_DOT_COLORS[track % TRACK_DOT_COLORS.length],
               )}
             />
             {name}
@@ -254,20 +284,40 @@ export function CommitGraph() {
             const parentCoords = commitCoords[parentId];
             if (!parentCoords) return null;
 
-            // Draw clean curved Bezier connections
+            // Draw curved Bezier connections. Control points use a fixed
+            // offset (not the midpoint) so the curve bends away from the
+            // parent quickly rather than lingering at the parent's y-level
+            // across the whole span — a midpoint-based curve visually cuts
+            // straight through any unrelated node that happens to sit on
+            // the shared track partway to a far-off, lower-track child
+            // (common whenever several branches fork off one commit).
+            const bend = Math.min(55, (childCoords.x - parentCoords.x) / 2);
             const pathData = `
               M ${parentCoords.x} ${parentCoords.y}
-              C ${(parentCoords.x + childCoords.x) / 2} ${parentCoords.y},
-                ${(parentCoords.x + childCoords.x) / 2} ${childCoords.y},
+              C ${parentCoords.x + bend} ${parentCoords.y},
+                ${childCoords.x - bend} ${childCoords.y},
                 ${childCoords.x} ${childCoords.y}
             `;
+
+            // The edge leading into the checked-out commit is colored
+            // emerald (matching the HEAD ring), not the shared track color.
+            // Without this, two branches sitting on one straight line — the
+            // common case before they've actually forked apart — render as
+            // a single uniform-colored bar that reads as "merged" even
+            // though they're two distinct, unmerged pointers.
+            const leadsToHead = commit.id === headPointingCommitId;
 
             return (
               <path
                 key={`${parentId}-${commit.id}`}
                 d={pathData}
                 fill="none"
-                className={`stroke-2 opacity-60 transition-all duration-300 ${getTrackColor(parentCoords.track)}`}
+                className={cn(
+                  "stroke-2 transition-all duration-300",
+                  leadsToHead ?
+                    "stroke-emerald-500 opacity-80"
+                  : `opacity-60 ${getTrackColor(parentCoords.track)}`,
+                )}
               />
             );
           });
@@ -346,20 +396,25 @@ export function CommitGraph() {
           if (!coords) return null;
 
           const pointers = commitPointers[commit.id] || [];
-          const isHeadDirect =
-            gitState.HEAD === commit.id && !gitState.currentBranch;
+          const isHeadDirect = isDetachedHeadCommit(commit.id);
 
           if (pointers.length === 0 && !isHeadDirect) return null;
 
-          const ROW_HEIGHT = 30;
-          const ROW_GAP = 8;
           const labelX = coords.x + 30;
+          // Every label row -- branch pointers, then a trailing detached-HEAD
+          // row if this commit is also the direct (unbranched) HEAD target --
+          // stacks fully ABOVE the node's y-coordinate via one shared index,
+          // so rows never straddle the horizontal connecting line running
+          // through that y-level (which would otherwise paint the opaque
+          // pill right on top of the line, hiding it) and the two label
+          // kinds can never land on the same row and overlap each other.
+          const rowY = (rowIndex: number) =>
+            coords.y - 4 - ROW_HEIGHT - rowIndex * (ROW_HEIGHT + ROW_GAP);
 
           return (
             <g key={`ptr-${commit.id}`} className="select-none">
               {pointers.map((bName, pIdx) => {
-                const rowTop =
-                  coords.y - 15 - pIdx * (ROW_HEIGHT + ROW_GAP);
+                const rowTop = rowY(pIdx);
                 const anchorY = rowTop + ROW_HEIGHT / 2;
                 const isBranchHeadActive = bName === activeBranch;
 
@@ -367,11 +422,11 @@ export function CommitGraph() {
                   <g key={bName}>
                     {/* Connector from node edge to the pill's left edge */}
                     <path
-                      d={`M ${coords.x + 7} ${coords.y - 7} C ${coords.x + 20} ${coords.y - 7}, ${coords.x + 20} ${anchorY}, ${labelX} ${anchorY}`}
-                      strokeDasharray="1 4"
+                      d={`M ${coords.x} ${coords.y - 13} C ${coords.x + 18} ${coords.y - 13}, ${coords.x + 18} ${anchorY}, ${labelX} ${anchorY}`}
+                      strokeDasharray="1.5 3.5"
                       strokeLinecap="round"
                       fill="none"
-                      className="stroke-zinc-300 stroke-[1.5] transition-all duration-300 dark:stroke-zinc-700"
+                      className="stroke-zinc-400 stroke-[1.5] transition-all duration-300 dark:stroke-zinc-500"
                     />
 
                     <foreignObject
@@ -408,33 +463,41 @@ export function CommitGraph() {
                 );
               })}
 
-              {/* Detached HEAD direct tag */}
-              {isHeadDirect && (
-                <g>
-                  <path
-                    d={`M ${coords.x + 7} ${coords.y - 7} C ${coords.x + 20} ${coords.y - 7}, ${coords.x + 20} ${coords.y - 15}, ${labelX} ${coords.y - 15}`}
-                    strokeDasharray="1 4"
-                    strokeLinecap="round"
-                    fill="none"
-                    className="stroke-zinc-300 stroke-[1.5] transition-all duration-300 dark:stroke-zinc-700"
-                  />
-                  <foreignObject
-                    x={labelX}
-                    y={coords.y - 15 - ROW_HEIGHT / 2}
-                    width={200}
-                    height={ROW_HEIGHT}
-                    overflow="visible"
-                  >
-                    <div
-                      style={{ width: "max-content" }}
-                      className="flex items-center gap-1.5 rounded-full border border-rose-400/40 bg-rose-50/90 px-2.5 py-1 text-xxs font-bold whitespace-nowrap text-rose-600 shadow-sm dark:border-rose-500/50 dark:bg-rose-950/90 dark:text-rose-400"
-                    >
-                      <Unlink className="size-3 shrink-0" />
-                      <span>HEAD (detached)</span>
-                    </div>
-                  </foreignObject>
-                </g>
-              )}
+              {/* Detached HEAD direct tag. Stacks as the next row after any
+                  branch pointers already on this commit (e.g. checking out
+                  a hash that a branch also happens to point to), instead of
+                  a fixed offset that would sit right on top of row 0. */}
+              {isHeadDirect &&
+                (() => {
+                  const rowTop = rowY(pointers.length);
+                  const anchorY = rowTop + ROW_HEIGHT / 2;
+                  return (
+                    <g>
+                      <path
+                        d={`M ${coords.x} ${coords.y - 13} C ${coords.x + 18} ${coords.y - 13}, ${coords.x + 18} ${anchorY}, ${labelX} ${anchorY}`}
+                        strokeDasharray="1.5 3.5"
+                        strokeLinecap="round"
+                        fill="none"
+                        className="stroke-zinc-400 stroke-[1.5] transition-all duration-300 dark:stroke-zinc-500"
+                      />
+                      <foreignObject
+                        x={labelX}
+                        y={rowTop}
+                        width={200}
+                        height={ROW_HEIGHT}
+                        overflow="visible"
+                      >
+                        <div
+                          style={{ width: "max-content" }}
+                          className="flex items-center gap-1.5 rounded-full border border-rose-400/40 bg-rose-50/90 px-2.5 py-1 text-xxs font-bold whitespace-nowrap text-rose-600 shadow-sm dark:border-rose-500/50 dark:bg-rose-950/90 dark:text-rose-400"
+                        >
+                          <Unlink className="size-3 shrink-0" />
+                          <span>HEAD (detached)</span>
+                        </div>
+                      </foreignObject>
+                    </g>
+                  );
+                })()}
             </g>
           );
         })}

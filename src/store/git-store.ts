@@ -2,7 +2,11 @@ import { create } from "zustand";
 
 import type { FileState, GitState } from "@/types/git";
 
-import { createInitialState, executeGitCommand } from "@/lib/git-engine";
+import {
+  createInitialState,
+  executeGitCommand,
+  generateHash,
+} from "@/lib/git-engine";
 import { lessons } from "@/lib/lessons";
 
 interface GitStore {
@@ -16,6 +20,10 @@ interface GitStore {
   currentStepIndex: number;
   isObjectiveSolved: boolean;
   quizAnsweredIdx: number | null;
+  // Sub-commands run since the current lesson step was entered, used to
+  // check off individual commands in a multi-command step's checklist.
+  // Reset whenever the active step changes.
+  stepCommandLog: string[];
 
   // Settings
   largeFonts: boolean;
@@ -84,6 +92,7 @@ export const useGitStore = create<GitStore>((set, get) => {
     currentStepIndex: 0,
     isObjectiveSolved: false,
     quizAnsweredIdx: null,
+    stepCommandLog: [],
 
     largeFonts: false,
     theme: "light", // default theme (will be hydrated in page client-side)
@@ -106,6 +115,10 @@ export const useGitStore = create<GitStore>((set, get) => {
       let currentGitState = gitState;
       let nextLogs = [...get().terminalLogs];
       nextLogs.push(`$ ${command}`);
+      // Only successfully-executed sub-commands count toward a lesson
+      // step's per-command checklist — a typo that errors out shouldn't
+      // check itself off.
+      const succeededSubCommands: string[] = [];
 
       for (const subCmd of subCommands) {
         if (!subCmd) continue;
@@ -142,6 +155,7 @@ export const useGitStore = create<GitStore>((set, get) => {
         if (error) {
           break; // Stop execution on error, matching real shell && logic
         }
+        succeededSubCommands.push(subCmd);
       }
 
       const solved = checkObjective(
@@ -162,6 +176,7 @@ export const useGitStore = create<GitStore>((set, get) => {
         redoStack: [], // clear redo
         terminalLogs: nextLogs,
         terminalInputHistory: nextInputHistory,
+        stepCommandLog: [...get().stepCommandLog, ...succeededSubCommands],
         isObjectiveSolved: solved,
         terminalInput: "", // Clear input on run
       });
@@ -239,6 +254,7 @@ export const useGitStore = create<GitStore>((set, get) => {
         ],
         isObjectiveSolved: false,
         quizAnsweredIdx: null,
+        stepCommandLog: [],
       });
     },
 
@@ -255,16 +271,20 @@ export const useGitStore = create<GitStore>((set, get) => {
         lessonId === "recovery" ||
         lessonId === "stash"
       ) {
-        // Pre-initialize and create an initial commit to save time
+        // Pre-initialize and create an initial commit to save time. Uses a
+        // real generated hash (not a literal "init-c" placeholder) so it
+        // reads the same as every other commit in the graph instead of
+        // looking like an unexplained special case.
+        const seedCommitId = generateHash();
         initialRepo.initialized = true;
         initialRepo.currentBranch = "main";
         initialRepo.HEAD = "main";
         initialRepo.branches = {
-          main: { name: "main", commitId: "init-c" },
+          main: { name: "main", commitId: seedCommitId },
         };
         initialRepo.commits = {
-          "init-c": {
-            id: "init-c",
+          [seedCommitId]: {
+            id: seedCommitId,
             parentIds: [],
             message: "Initial commit",
             author: "learner@git-control.dev",
@@ -284,7 +304,9 @@ export const useGitStore = create<GitStore>((set, get) => {
           initialRepo.workingDirectory["index.js"].state = "committed";
         }
         // sync staging area cache
-        initialRepo.stagingArea = { ...initialRepo.commits["init-c"]?.files };
+        initialRepo.stagingArea = {
+          ...initialRepo.commits[seedCommitId]?.files,
+        };
       }
 
       set({
@@ -295,6 +317,7 @@ export const useGitStore = create<GitStore>((set, get) => {
         currentStepIndex: 0,
         isObjectiveSolved: false,
         quizAnsweredIdx: null,
+        stepCommandLog: [],
         terminalLogs: [
           `Starting lesson: ${lessonId === "sandbox" ? "Free Play Sandbox" : lessons.find((l) => l.id === lessonId)?.title || ""}`,
           "Good luck!",
@@ -312,6 +335,7 @@ export const useGitStore = create<GitStore>((set, get) => {
         currentStepIndex: index,
         isObjectiveSolved: solved,
         quizAnsweredIdx: null,
+        stepCommandLog: [],
       });
     },
 
@@ -342,6 +366,7 @@ export const useGitStore = create<GitStore>((set, get) => {
         currentStepIndex: nextIndex,
         isObjectiveSolved: solved,
         quizAnsweredIdx: null,
+        stepCommandLog: [],
       });
     },
 
@@ -356,6 +381,7 @@ export const useGitStore = create<GitStore>((set, get) => {
         currentStepIndex: prevIndex,
         isObjectiveSolved: solved,
         quizAnsweredIdx: null,
+        stepCommandLog: [],
       });
     },
 

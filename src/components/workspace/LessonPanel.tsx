@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Award,
+  Check,
   CheckCircle,
   Play,
   Target,
@@ -14,12 +15,31 @@ import {
 import { lessons } from "@/lib/lessons";
 import { useGitStore } from "@/store/git-store";
 
+// Compares a required command against one the learner actually ran,
+// ignoring formatting differences (quote style, extra whitespace) and
+// recognizing `git switch`/`git switch -c` as equivalent to
+// `git checkout`/`git checkout -b` since the lessons teach both as valid.
+function normalizeCommand(cmd: string): string {
+  return cmd
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/['"]/g, '"')
+    .replace(/^git switch -c\b/, "git checkout -b")
+    .replace(/^git switch\b/, "git checkout");
+}
+
+function commandWasRun(required: string, log: string[]): boolean {
+  const target = normalizeCommand(required);
+  return log.some((entry) => normalizeCommand(entry) === target);
+}
+
 export function LessonPanel() {
   const {
     currentLessonId,
     currentStepIndex,
     isObjectiveSolved,
     quizAnsweredIdx,
+    stepCommandLog,
     nextStep,
     prevStep,
     answerQuiz,
@@ -236,18 +256,67 @@ export function LessonPanel() {
               {step.objective.description}
             </p>
 
-            {/* Quick pre-fill command */}
-            {!isObjectiveSolved && step.commandPreset && (
-              <button
-                onClick={() => {
-                  setTerminalInput(step.commandPreset || "");
-                }}
-                className="mt-3 flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-200 bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-200 active:scale-95 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
-              >
-                <Play className="size-3 text-orange-500" />
-                <span>Autofill Command</span>
-              </button>
-            )}
+            {/* Quick pre-fill command(s). Steps needing more than one command
+                show every remaining one, numbered, so it's never mistaken
+                for "the whole step" — running just the first isn't enough
+                to solve the objective. */}
+            {!isObjectiveSolved &&
+              step.commandPreset &&
+              (() => {
+                const commands =
+                  Array.isArray(step.commandPreset) ?
+                    step.commandPreset
+                  : [step.commandPreset];
+                const doneFlags = commands.map((cmd) =>
+                  commandWasRun(cmd, stepCommandLog),
+                );
+                const doneCount = doneFlags.filter(Boolean).length;
+                return (
+                  <div className="mt-3 space-y-1.5">
+                    {commands.length > 1 && (
+                      <p className="text-xxs font-semibold text-zinc-400 dark:text-zinc-500">
+                        This step needs {commands.length} commands, in order —{" "}
+                        {doneCount} of {commands.length} done:
+                      </p>
+                    )}
+                    {commands.map((cmd, idx) => {
+                      const isDone = doneFlags[idx];
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => setTerminalInput(cmd)}
+                          className={`flex w-full cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-xs font-medium transition active:scale-95 ${
+                            isDone ?
+                              "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-500/25 dark:bg-emerald-950/20 dark:text-emerald-400 dark:hover:bg-emerald-950/35"
+                            : "border-zinc-200 bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                          }`}
+                        >
+                          {isDone ?
+                            <Check className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                          : <Play className="size-3 shrink-0 text-orange-500" />
+                          }
+                          <span
+                            className={`truncate font-mono ${isDone ? "line-through opacity-70" : ""}`}
+                          >
+                            {cmd}
+                          </span>
+                          {commands.length > 1 && (
+                            <span
+                              className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-xxxxs font-bold ${
+                                isDone ?
+                                  "bg-emerald-200/60 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400"
+                                : "bg-zinc-200 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400"
+                              }`}
+                            >
+                              {idx + 1}/{commands.length}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
           </div>
         )}
 

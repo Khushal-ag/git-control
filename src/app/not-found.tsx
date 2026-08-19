@@ -3,10 +3,10 @@ import Link from "next/link";
 
 import { GitCommitHorizontal, Home } from "lucide-react";
 
+import type { Metadata } from "next";
+
 import { ThemeSync } from "@/components/theme-sync";
 import { siteConfig } from "@/config/site";
-
-import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Page Not Found",

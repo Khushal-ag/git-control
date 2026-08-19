@@ -9,7 +9,10 @@ export interface LessonStep {
   title: string;
   explanation: string; // Markdown supported
   objective?: LessonObjective;
-  commandPreset?: string;
+  // A single command, or the full ordered sequence of commands this step
+  // requires. Steps needing more than one command must list ALL of them
+  // here so the UI can surface every remaining step, not just the first.
+  commandPreset?: string | string[];
   quiz?: {
     question: string;
     options: string[];
@@ -36,7 +39,7 @@ export const lessons: Lesson[] = [
     steps: [
       {
         title: "Welcome to Git!",
-        explanation: `Welcome to **GitControl**!\n\nGit is a distributed version control system that tracks changes in your source code during development. \n\nIn this playground, you can experiment with Git concepts by executing commands in the terminal and instantly seeing their visual effects on the commit graph and the files workspace.\n\nClick **Next** to begin!`,
+        explanation: `Welcome to **GitControl**!\n\nGit is a tool that saves snapshots of your code as you work, so you can experiment freely, undo mistakes, and always get back to a version that worked — alone or with a whole team (that's what "**version control**" means).\n\nIn this playground, you can experiment with real Git commands in the terminal and instantly see their effects on the commit graph and the files workspace.\n\nClick **Next** to begin!`,
       },
       {
         title: "Initializing a Repository",
@@ -128,7 +131,7 @@ export const lessons: Lesson[] = [
       },
       {
         title: "Committing on a Branch",
-        explanation: `Let's make a change on our branch! We need to follow these steps:\n\n1. **Modify the file:** Add some login code to our file:\n\`echo "// login page logic" >> index.js\`\n\n2. **Stage the changes:** Prepare the file to be committed:\n\`git add index.js\`\n\n3. **Commit the work:** Save the snapshot on our feature branch:\n\`git commit -m "Add login framework"\`\n\nWatch the commit graph branch out and the \`feature/login\` pointer advance, while \`main\` stays behind!`,
+        explanation: `Let's make a change on our branch! We need to follow these steps:\n\n1. **Modify the file:** Add some login code to our file:\n\`echo "// login page logic" >> index.js\`\n\n2. **Stage the changes:** Prepare the file to be committed:\n\`git add index.js\`\n\n3. **Commit the work:** Save the snapshot on our feature branch:\n\`git commit -m "Add login framework"\`\n\nWatch the \`feature/login\` pointer advance ahead in the commit graph, while \`main\` stays exactly where it was. That gap between them is what "your branch is ahead" means — the history will only visually fork once \`main\` gets a commit of its own too.`,
         objective: {
           description: "Stage and commit a change on the feature branch.",
           validate: (state: GitState) => {
@@ -142,11 +145,15 @@ export const lessons: Lesson[] = [
             );
           },
         },
-        commandPreset: 'echo "// login page logic" >> index.js',
+        commandPreset: [
+          'echo "// login page logic" >> index.js',
+          "git add index.js",
+          'git commit -m "Add login framework"',
+        ],
       },
       {
         title: "Detached HEAD Mode",
-        explanation: `If you checkout a specific commit hash instead of a branch, Git enters a state called **Detached HEAD**.\n\nIn this mode, HEAD points directly to a commit rather than a branch label. Let's see this in action by checking out your first commit.\n\nFind the hash of your first commit (e.g. from the commit graph or log) and check it out.\n\n**Step to perform:**\n1. **Checkout a commit hash directly:** Point HEAD straight to the commit hash without attaching to any branch label:\n\`git checkout <first-commit-hash>\``,
+        explanation: `If you checkout a specific commit hash instead of a branch, Git enters a state called **Detached HEAD**.\n\nIn this mode, HEAD points directly to a commit rather than a branch label. **Be careful here:** if you make new commits while detached and then switch to a branch without first saving your work (e.g. with \`git branch new-name\`), those commits can become orphaned and hard to find — though as you'll see in the Recovery lesson, Git almost never truly deletes them.\n\nLet's see this in action by checking out your first commit. Find its hash (e.g. from the commit graph or log) and check it out.\n\n**Step to perform:**\n1. **Checkout a commit hash directly:** Point HEAD straight to the commit hash without attaching to any branch label:\n\`git checkout <first-commit-hash>\``,
         objective: {
           description:
             "Enter Detached HEAD mode by checking out a commit hash.",
@@ -167,7 +174,7 @@ export const lessons: Lesson[] = [
     steps: [
       {
         title: "Bringing History Together",
-        explanation: `Once work on a feature branch is completed, you want to merge it back into your primary branch (usually \`main\`).\n\nThere are two main merge scenarios:\n1. **Fast-forward**: The target branch has progressed linearly from the merge point. Git just moves the branch pointer forward.\n2. **Three-way merge**: Both branches have progressed independently. Git creates a new **merge commit** with two parents.\n\nClick **Next** to try a Fast-forward merge.`,
+        explanation: `Once work on a feature branch is completed, you want to merge it back into your primary branch (usually \`main\`).\n\nThere are two main merge scenarios:\n1. **Fast-forward**: Your current branch hasn't moved since the branch you're merging in was created — it has no commits of its own to reconcile. Git just slides your branch pointer forward to match, no new commit needed.\n2. **Three-way merge**: Both branches have progressed independently since they diverged. Git creates a new **merge commit** with two parents to tie them back together.\n\nClick **Next** to try a Fast-forward merge.`,
       },
       {
         title: "Preparing a Feature Branch",
@@ -185,7 +192,12 @@ export const lessons: Lesson[] = [
             );
           },
         },
-        commandPreset: "git checkout -b feature/login",
+        commandPreset: [
+          "git checkout -b feature/login",
+          'echo "// login page logic" >> index.js',
+          "git add index.js",
+          'git commit -m "Add login framework"',
+        ],
       },
       {
         title: "Switching back to Main",
@@ -227,7 +239,17 @@ export const lessons: Lesson[] = [
             );
           },
         },
-        commandPreset: "git checkout -b branch-a",
+        commandPreset: [
+          "git checkout -b branch-a",
+          'echo "A" > index.js',
+          "git add index.js",
+          'git commit -m "edit A"',
+          "git checkout main",
+          'echo "B" > index.js',
+          "git add index.js",
+          'git commit -m "edit B"',
+          "git merge branch-a",
+        ],
       },
       {
         title: "Resolving Conflicts",
@@ -248,7 +270,11 @@ export const lessons: Lesson[] = [
             );
           },
         },
-        commandPreset: 'echo "Resolved Content" > index.js',
+        commandPreset: [
+          'echo "Resolved Content" > index.js',
+          "git add index.js",
+          'git commit -m "Resolve merge conflict"',
+        ],
       },
     ],
   },
@@ -261,7 +287,7 @@ export const lessons: Lesson[] = [
     steps: [
       {
         title: "Rebase vs. Merge",
-        explanation: `Merging adds a merge commit, leaving the branches history intact but messy. \n\n**Rebase** takes the commits you created on a branch, "rewinds" them, and replays them one-by-one on top of the target branch's latest commit. This results in a perfectly linear project history.\n\nLet's set up a rebase challenge. Click **Next**!`,
+        explanation: `Merging preserves history exactly as it happened, but leaves the graph a little messy with an extra merge commit. \n\n**Rebase** takes the commits you created on a branch, "rewinds" them, and replays them one-by-one on top of the target branch's latest commit. This results in a perfectly linear project history.\n\n**Important:** never rebase commits that have already been pushed and shared with others. Rebase rewrites each commit into a brand-new one with a different hash, so doing this on shared history forces everyone else to reconcile two conflicting timelines. Only rebase branches that are still private to you — like a local feature branch nobody else has pulled yet.\n\nLet's set up a rebase challenge. Click **Next**!`,
       },
       {
         title: "Rebasing Commits",
@@ -287,7 +313,18 @@ export const lessons: Lesson[] = [
             return foundMain && featCId !== mainCId;
           },
         },
-        commandPreset: "git checkout -b feature/rebase",
+        commandPreset: [
+          "git checkout -b feature/rebase",
+          'echo "feat" > index.js',
+          "git add index.js",
+          'git commit -m "feature commit"',
+          "git checkout main",
+          'echo "main change" > index.js',
+          "git add index.js",
+          'git commit -m "main commit"',
+          "git checkout feature/rebase",
+          "git rebase main",
+        ],
       },
       {
         title: "Cherry-Picking a Commit",
@@ -321,9 +358,10 @@ export const lessons: Lesson[] = [
       },
       {
         title: "Reverting a Commit",
-        explanation: `Let's say a commit introduced a bug, and you want to undo it. If you have already pushed changes to a shared branch, you should *never* rewrite history using reset.\n\nInstead, use \`git revert\`. This creates a new commit that applies the exact opposite changes of the target commit.\n\nChoose the last commit hash in your log and revert it.\n\n**Step to perform:**\n1. **Revert the target commit:** Create a new "inverse" commit to undo the target commit's changes safely:\n\`git revert <last-commit-hash>\``,
+        explanation: `Let's say a commit introduced a bug, and you want to undo *just that change* — without touching any of the good work that came before or after it.\n\nFirst, let's simulate that bad commit:\n\n1. **Introduce a bug:** Make a change and commit it, as if it were real (broken) code:\n\`echo "// buggy code" >> index.js\`\n\`git add index.js\`\n\`git commit -m "Introduce a bug"\`\n\nIf you have already pushed changes to a shared branch, you should *never* rewrite history using reset.\n\nInstead, use \`git revert\`. This creates a **new** commit that applies the exact opposite of the target commit's changes — undoing it without erasing or rewriting any history.\n\n2. **Revert the buggy commit:** Find its hash in the commit graph and revert it:\n\`git revert <bug-commit-hash>\``,
         objective: {
-          description: "Revert the last commit to undo its changes.",
+          description:
+            "Commit a change, then revert it to safely undo its effects.",
           validate: (state: GitState) => {
             const headId =
               (state.currentBranch ?
@@ -332,6 +370,11 @@ export const lessons: Lesson[] = [
             return !!state.commits[headId]?.message.startsWith('Revert "');
           },
         },
+        commandPreset: [
+          'echo "// buggy code" >> index.js',
+          "git add index.js",
+          'git commit -m "Introduce a bug"',
+        ],
       },
       {
         title: "Resetting History",
@@ -369,6 +412,7 @@ export const lessons: Lesson[] = [
             return !!(resetAction && resetAction.previousHead === currentHead);
           },
         },
+        commandPreset: "git reflog",
       },
     ],
   },
@@ -376,7 +420,7 @@ export const lessons: Lesson[] = [
     id: "stash",
     title: "6. Shelving with Stash",
     description:
-      "Learn how to stash temporary changes away to clean your workspace, and apply them back later.",
+      "Learn how to stash temporary changes away to clean your workspace, and restore them later.",
     category: "Advanced",
     steps: [
       {
@@ -385,12 +429,12 @@ export const lessons: Lesson[] = [
       },
       {
         title: "Stashing Changes",
-        explanation: `Let's modify a file to make the workspace "dirty", then stash the changes step-by-step:\n\n1. **Make a local change:** Edit the file to simulate work-in-progress:\n\`echo "// work in progress" >> index.js\`\n\n2. **Stash the changes:** Shelf your changes to temporarily clean the workspace:\n\`git stash\`\n\nObserve how the files disappear from the Working Directory and Staging lanes, and move into the **Stash Stack** (Lane 3 under Stashes)!`,
+        explanation: `Let's modify a file to make the workspace "dirty", then stash the changes step-by-step:\n\n1. **Make a local change:** Edit the file to simulate work-in-progress:\n\`echo "// work in progress" >> index.js\`\n\n2. **Stash the changes:** Shelve your changes to temporarily clean the workspace:\n\`git stash\`\n\nObserve how the files disappear from the Working Directory and Staging lanes, and move into the **Stash Stack** (Lane 3 under Stashes)!`,
         objective: {
           description: "Modify a file and run git stash.",
           validate: (state: GitState) => state.stash.length > 0,
         },
-        commandPreset: 'echo "// work in progress" >> index.js',
+        commandPreset: ['echo "// work in progress" >> index.js', "git stash"],
       },
       {
         title: "Popping Changes",
