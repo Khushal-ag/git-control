@@ -17,11 +17,11 @@ import { useGitStore } from "@/store/git-store";
 // Full literal Tailwind classnames (not derived via string concatenation) so
 // the JIT compiler can statically discover and generate them.
 const TRACK_DOT_COLORS = [
-  "bg-blue-500", // Main (track 0)
-  "bg-purple-500", // branch 1
-  "bg-emerald-500", // branch 2
-  "bg-amber-500", // branch 3
-  "bg-pink-500", // branch 4
+  "bg-blue-500",
+  "bg-purple-500",
+  "bg-emerald-500",
+  "bg-amber-500",
+  "bg-pink-500",
 ];
 
 export function CommitGraph() {
@@ -34,7 +34,6 @@ export function CommitGraph() {
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close context menu on outside click
   useEffect(() => {
     const handleOutsideClick = () => {
       setSelectedCommitId(null);
@@ -85,9 +84,6 @@ export function CommitGraph() {
     );
   }
 
-  // Collect active pointers pointing to each commit. Computed before layout
-  // (it doesn't depend on coordinates) so we can reserve enough vertical
-  // headroom for however many labels end up stacked on one commit.
   const commitPointers: Record<string, string[]> = {};
   Object.keys(gitState.branches).forEach((branchName) => {
     const b = gitState.branches[branchName];
@@ -103,11 +99,6 @@ export function CommitGraph() {
   const ROW_HEIGHT = 30;
   const ROW_GAP = 8;
 
-  // Reserve extra vertical headroom above track 0 when a commit has more
-  // than 2 stacked branch/HEAD pills — otherwise a commit with many
-  // pointers (a common case: several branches all still on the same root
-  // commit) pushes labels above y=0, off the top of the SVG with no way to
-  // scroll up to reach them.
   const maxStackedRows = Math.max(
     1,
     ...Object.keys(gitState.commits).map(
@@ -119,21 +110,15 @@ export function CommitGraph() {
   const topMargin =
     maxStackedRows > 2 ? (maxStackedRows - 2) * (ROW_HEIGHT + ROW_GAP) + 20 : 0;
 
-  // Position generation algorithm
-  // Assign columns based on chronological order of commits
   const commitCoords: Record<string, { x: number; y: number; track: number }> =
     {};
-  const activeTracks: Record<number, string> = {}; // trackIndex -> lastCommitId on that track
+  const activeTracks: Record<number, string> = {};
 
   commitsList.forEach((commit, index) => {
-    // 190px gives a branch-name pill + adjacent HEAD badge enough room to
-    // clear the next commit's node before it gets drawn.
     const x = index * 190 + 70;
     let assignedTrack = 0;
 
-    // Track determination based on parents
     if (commit.parentIds.length === 0) {
-      // Root commit
       assignedTrack = 0;
       activeTracks[0] = commit.id;
     } else {
@@ -143,12 +128,10 @@ export function CommitGraph() {
         if (parentCoords) {
           const parentTrack = parentCoords.track;
 
-          // If parent track is already occupied, check if we can reuse or branch off
           if (activeTracks[parentTrack] === primaryParentId) {
             assignedTrack = parentTrack;
             activeTracks[parentTrack] = commit.id;
           } else {
-            // Branching off. Find the next empty track.
             let track = 1;
             while (
               activeTracks[track] !== undefined &&
@@ -167,7 +150,6 @@ export function CommitGraph() {
     commitCoords[commit.id] = { x, y, track: assignedTrack };
   });
 
-  // Find HEAD
   let headPointingCommitId = "";
   if (gitState.currentBranch && gitState.branches[gitState.currentBranch]) {
     headPointingCommitId = gitState.branches[gitState.currentBranch]!.commitId;
@@ -175,22 +157,19 @@ export function CommitGraph() {
     headPointingCommitId = gitState.HEAD;
   }
 
-  // Get active branch name
   const activeBranch = gitState.currentBranch;
 
-  // Track colors helper
   const getTrackColor = (track: number): string => {
     const colors = [
-      "stroke-blue-500", // Main (track 0)
-      "stroke-purple-500", // branch 1
-      "stroke-emerald-500", // branch 2
-      "stroke-amber-500", // branch 3
-      "stroke-pink-500", // branch 4
+      "stroke-blue-500",
+      "stroke-purple-500",
+      "stroke-emerald-500",
+      "stroke-amber-500",
+      "stroke-pink-500",
     ];
     return colors[track % colors.length] || "stroke-blue-500";
   };
 
-  // Node menu click handlers
   const handleNodeClick = (e: React.MouseEvent, commitId: string) => {
     e.stopPropagation();
     setSelectedCommitId(commitId);
@@ -223,15 +202,12 @@ export function CommitGraph() {
   };
 
   const svgWidth = commitsList.length * 190 + 150;
-  // Dynamic height based on max track assigned
   const maxTrack = Math.max(
     ...Object.values(commitCoords).map((c) => c.track),
     0,
   );
   const svgHeight = 220 + topMargin + maxTrack * 75;
 
-  // Legend entries: one dot per branch, colored by the track its tip commit
-  // currently occupies, sorted so track 0 (main) always leads.
   const legendBranches = Object.keys(gitState.branches)
     .map((name) => {
       const commitId = gitState.branches[name]?.commitId;
@@ -246,19 +222,12 @@ export function CommitGraph() {
       ref={containerRef}
       className="relative scrollbar-thin h-full w-full scrollbar-thumb-zinc-200 overflow-auto rounded-xl border border-zinc-200 bg-white transition-colors duration-300 dark:scrollbar-thumb-zinc-800 dark:border-zinc-900 dark:bg-zinc-950"
     >
-      {/* Legend panel */}
       <div className="absolute top-3 left-4 z-10 flex flex-wrap items-center gap-x-3.5 gap-y-1 rounded-lg border border-zinc-200 bg-zinc-50/95 px-3 py-1.5 text-xxs font-bold text-zinc-500 shadow-xxs backdrop-blur-xs dark:border-zinc-800 dark:bg-zinc-900/60 dark:shadow-none">
         {legendBranches.map(({ name, track }) => (
           <span key={name} className="flex items-center gap-1.5">
             <span
               className={cn(
                 "size-2 rounded-full",
-                // The checked-out branch always renders emerald (node ring,
-                // fill, and its edges) regardless of track, matching the
-                // "you are here" HEAD indicator — so its legend dot needs to
-                // match that override instead of showing its raw track
-                // color, or the legend would promise a color nothing on
-                // screen actually uses.
                 name === gitState.currentBranch ?
                   "bg-emerald-500"
                 : TRACK_DOT_COLORS[track % TRACK_DOT_COLORS.length],
@@ -275,7 +244,6 @@ export function CommitGraph() {
       </div>
 
       <svg width={svgWidth} height={svgHeight} className="min-w-full">
-        {/* Draw connection lines */}
         {commitsList.map((commit) => {
           const childCoords = commitCoords[commit.id];
           if (!childCoords) return null;
@@ -284,13 +252,6 @@ export function CommitGraph() {
             const parentCoords = commitCoords[parentId];
             if (!parentCoords) return null;
 
-            // Draw curved Bezier connections. Control points use a fixed
-            // offset (not the midpoint) so the curve bends away from the
-            // parent quickly rather than lingering at the parent's y-level
-            // across the whole span — a midpoint-based curve visually cuts
-            // straight through any unrelated node that happens to sit on
-            // the shared track partway to a far-off, lower-track child
-            // (common whenever several branches fork off one commit).
             const bend = Math.min(55, (childCoords.x - parentCoords.x) / 2);
             const pathData = `
               M ${parentCoords.x} ${parentCoords.y}
@@ -299,12 +260,6 @@ export function CommitGraph() {
                 ${childCoords.x} ${childCoords.y}
             `;
 
-            // The edge leading into the checked-out commit is colored
-            // emerald (matching the HEAD ring), not the shared track color.
-            // Without this, two branches sitting on one straight line — the
-            // common case before they've actually forked apart — render as
-            // a single uniform-colored bar that reads as "merged" even
-            // though they're two distinct, unmerged pointers.
             const leadsToHead = commit.id === headPointingCommitId;
 
             return (
@@ -323,7 +278,6 @@ export function CommitGraph() {
           });
         })}
 
-        {/* Draw commit nodes */}
         {commitsList.map((commit) => {
           const coords = commitCoords[commit.id];
           if (!coords) return null;
@@ -333,7 +287,6 @@ export function CommitGraph() {
 
           return (
             <g key={commit.id} className="cursor-pointer">
-              {/* Outer glow ring for HEAD */}
               {isCurrentHead && (
                 <circle
                   cx={coords.x}
@@ -352,7 +305,6 @@ export function CommitGraph() {
                 />
               )}
 
-              {/* Node circle */}
               <circle
                 cx={coords.x}
                 cy={coords.y}
@@ -367,7 +319,6 @@ export function CommitGraph() {
                 }`}
               />
 
-              {/* Node hash abbreviation */}
               <text
                 x={coords.x}
                 y={coords.y + 25}
@@ -378,7 +329,6 @@ export function CommitGraph() {
                 {commit.id.substring(0, 7)}
               </text>
 
-              {/* Node short message tooltip on node */}
               <title>
                 {`Hash: ${commit.id}\nMsg: ${commit.message}\nAuthor: ${commit.author}\nDate: ${new Date(
                   commit.timestamp,
@@ -388,9 +338,6 @@ export function CommitGraph() {
           );
         })}
 
-        {/* Draw pointer labels (branches / HEAD) as real HTML pills, so
-            width/spacing is handled by flexbox instead of a hand-estimated
-            "chars * px" formula that drifted out of sync with the text. */}
         {commitsList.map((commit) => {
           const coords = commitCoords[commit.id];
           if (!coords) return null;
@@ -401,13 +348,6 @@ export function CommitGraph() {
           if (pointers.length === 0 && !isHeadDirect) return null;
 
           const labelX = coords.x + 30;
-          // Every label row -- branch pointers, then a trailing detached-HEAD
-          // row if this commit is also the direct (unbranched) HEAD target --
-          // stacks fully ABOVE the node's y-coordinate via one shared index,
-          // so rows never straddle the horizontal connecting line running
-          // through that y-level (which would otherwise paint the opaque
-          // pill right on top of the line, hiding it) and the two label
-          // kinds can never land on the same row and overlap each other.
           const rowY = (rowIndex: number) =>
             coords.y - 4 - ROW_HEIGHT - rowIndex * (ROW_HEIGHT + ROW_GAP);
 
@@ -420,7 +360,6 @@ export function CommitGraph() {
 
                 return (
                   <g key={bName}>
-                    {/* Connector from node edge to the pill's left edge */}
                     <path
                       d={`M ${coords.x} ${coords.y - 13} C ${coords.x + 18} ${coords.y - 13}, ${coords.x + 18} ${anchorY}, ${labelX} ${anchorY}`}
                       strokeDasharray="1.5 3.5"
@@ -463,10 +402,6 @@ export function CommitGraph() {
                 );
               })}
 
-              {/* Detached HEAD direct tag. Stacks as the next row after any
-                  branch pointers already on this commit (e.g. checking out
-                  a hash that a branch also happens to point to), instead of
-                  a fixed offset that would sit right on top of row 0. */}
               {isHeadDirect &&
                 (() => {
                   const rowTop = rowY(pointers.length);
@@ -503,7 +438,6 @@ export function CommitGraph() {
         })}
       </svg>
 
-      {/* Floating Action Menu for Clicked Node */}
       {selectedCommitId && menuPosition && (
         <div
           style={{

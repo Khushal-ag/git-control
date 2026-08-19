@@ -1,127 +1,110 @@
 <div align=center>
 
-![views] ![stars] ![forks] ![issues] ![license] ![repo-size]
+# GitControl
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./public/nextjs-light.svg">
-  <source media="(prefers-color-scheme: light)" srcset="./public/nextjs-dark.svg">
-  <img alt="Next.js" src="./public/nextjs-light.svg">
-</picture>
+**An interactive Git simulator that visualizes branches, commits, merges, and more, live in your browser.**
 
-# Next.js Starter Template
-
-A minimal Next.js starter with **Next.js 16**, **Tailwind CSS v4**, **TypeScript**, **ESLint 10** (flat config), **Prettier**, and **Husky**.
+[![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19-61dafb)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6)](https://www.typescriptlang.org/)
 
 </div>
+
+GitControl is a hands-on learning playground for Git. Run real Git commands in a simulated terminal and instantly see how they affect the commit graph, working directory, staging area, stash, and reflog.
 
 ## Features
 
-- **Next.js 16** – App Router, Turbopack, React Compiler (prod)
-- **Tailwind CSS v4** – CSS-first config (`@theme` in `globals.css`)
-- **TypeScript** – Strict mode
-- **ESLint 10** – Flat config with Next, TypeScript, Prettier, React Compiler
-- **Prettier** – Import sort + Tailwind class sorting
-- **Husky + lint-staged** – Pre-commit: ESLint + Prettier on staged files
-
-## Prerequisites
-
-Node.js ≥ 20.9.0
+- **Simulated Git terminal**: `init`, `status`, `add`, `commit`, `branch`, `checkout`/`switch`, `merge`, `rebase`, `cherry-pick`, `stash`, `reset`, `revert`, `reflog`, `log`, plus shell helpers (`echo`, `cat`, `ls`, `touch`, `rm`)
+- **Visual commit graph**: interactive SVG DAG with branch labels, HEAD indicator, and click actions
+- **Three-lane file workspace**: Working Directory → Staging Area → Committed
+- **Guided lessons**: 6 structured courses from Git basics through stash & recovery
+- **Merge conflict UI**: side-by-side ours/theirs resolution
+- **Undo / redo**: full state history with keyboard shortcuts
+- **Dark mode**: persisted theme preference
 
 ## Getting Started
 
-```bash
-bunx create-next-app -e "https://github.com/Khushal-ag/nextjs-template" <project-name>
-```
-
-**Install dependencies**
+**Prerequisites:** Node.js ≥ 20.20.2 (or use [Bun](https://bun.sh/))
 
 ```bash
+git clone https://github.com/Khushal-ag/git-control.git
+cd git-control
 bun i
-# or: pnpm i | yarn | npm i
+bun run dev
 ```
 
-**Initialize git _(optional)_**
-
-```bash
-git init
-git add .
-git commit -m "init"
-```
-
-Husky runs on install (`prepare`) and sets up the pre-commit hook.
+Open [http://localhost:3000](http://localhost:3000).
 
 ## Available Scripts
 
-| Script       | Description                                  |
-| ------------ | -------------------------------------------- |
-| `dev`        | Start dev server (Turbopack)                 |
-| `build`      | Production build                             |
-| `start`      | Serve production build                       |
-| `preview`    | Build and serve (production mode)            |
-| `lint`       | ESLint + TypeScript type-check               |
-| `lint:fix`   | ESLint with auto-fix                         |
-| `type-check` | TypeScript type-check only                   |
-| `fmt:check`  | Check Prettier formatting                    |
-| `fmt`        | Format with Prettier                         |
-| `validate`   | `lint` + `fmt:check` + `build` (for CI)      |
-| `ui`         | Shadcn UI CLI                                |
-| `clean`      | Remove `.next` cache                         |
-| `cleani`     | Remove `.next` and `node_modules`, reinstall |
+| Script        | Description                        |
+| ------------- | ---------------------------------- |
+| `dev`         | Start dev server (Turbopack)       |
+| `build`       | Production build                   |
+| `start`       | Serve production build             |
+| `test`        | Run unit tests (Vitest)            |
+| `test:watch`  | Run tests in watch mode            |
+| `lint`        | ESLint + TypeScript type-check     |
+| `type-check`  | TypeScript type-check only         |
+| `fmt`         | Format with Prettier               |
+| `validate`    | lint + fmt:check + build (for CI)  |
 
 ## Project Structure
 
-- `src/app/` – App Router (layout, page, robots, sitemap)
-- `src/components/` – React components
-- `src/config/site.ts` – Site config (SEO, links, metadata)
-- `src/lib/` – Utilities, fonts
-- `src/styles/globals.css` – Global styles + Tailwind `@theme`
+```
+src/
+├── app/              # Next.js App Router (page, layout, metadata)
+├── components/
+│   ├── layout/       # Navbar
+│   └── workspace/    # CommitGraph, FileExplorer, GitTerminal, LessonPanel, ConflictResolver
+├── config/           # Site config (SEO, links)
+├── lib/
+│   ├── git-engine.ts # Pure Git simulator (command → state)
+│   └── lessons.ts    # Lesson definitions & objective validators
+├── store/
+│   └── git-store.ts  # Zustand store (terminal, undo, lesson progress)
+└── types/
+    └── git.ts        # GitState, GitCommit, GitFile, etc.
+```
+
+## Architecture
+
+The app follows a simple unidirectional flow:
+
+1. **UI** (terminal, graph, file explorer) dispatches actions to the **Zustand store**
+2. The store calls **`executeGitCommand()`** in `git-engine.ts`, a pure function that returns `{ nextState, output }`
+3. Updated state drives all visual panels reactively
+
+The git engine is intentionally isolated and covered by unit tests in `src/lib/git-engine.test.ts`.
+
+## Lessons
+
+| # | Lesson              | Topics                                      |
+|---|---------------------|---------------------------------------------|
+| 1 | The Git Basics      | init, stage, commit, 3-stage model quiz    |
+| 2 | Branching           | branches, checkout, detached HEAD           |
+| 3 | Merging & Conflicts | fast-forward, 3-way merge, conflict resolve |
+| 4 | Rebase & Cherry-Pick| rebase, cherry-pick                         |
+| 5 | Recovery & Undoing  | revert, reset, reflog                       |
+| 6 | Shelving with Stash | stash, pop                                  |
+
+Select **Free Play Sandbox** from the navbar to experiment without guidance.
 
 ## Customization
 
-Edit **`src/config/site.ts`** for your project:
+Edit **`src/config/site.ts`** for site name, description, URL, and social links. Set **`NEXT_PUBLIC_SITE_URL`** in `.env` to override the canonical URL per environment.
 
-- `name`, `description`, `url`, `keywords`
-- `authors`, `creator`, `links` (repo, github, social)
-- `twitter`, `ogImage`, `robots`
+## Tech Stack
 
-Set **`NEXT_PUBLIC_SITE_URL`** in `.env` to override the base URL (e.g. per environment). See `.env.example`.
-If you use remote images with `next/image`, set **`NEXT_PUBLIC_IMAGE_HOSTS`** (comma-separated hostnames, `https` only), for example: `images.example.com,cdn.example.org`.
-
-Metadata, Open Graph, Twitter, sitemap, and robots all use this config.
-
-## After Installation
-
-- [ ] Update `package.json` with your project details
-- [ ] Update `README.md` and `LICENSE`
-- [ ] Edit `src/config/site.ts`
-- [ ] Replace or edit `src/app/page.tsx` and `src/app/layout.tsx`
-- [ ] Remove or repurpose `src/app/client-components.tsx` if not needed
-
-## Switching Package Manager
-
-The template uses [bun](https://bun.sh/) and keeps `bun.lock`. To use npm, yarn, or pnpm: remove `bun.lock`, then run `npm i`, `yarn`, or `pnpm i`. Other lockfiles are in `.gitignore`.
-`validate` is package-manager agnostic, so `npm run validate`, `pnpm validate`, `yarn validate`, and `bun run validate` all work.
+- Next.js 16 (App Router, Turbopack, React Compiler)
+- React 19
+- Zustand 5
+- Tailwind CSS v4
+- Framer Motion
+- TypeScript (strict)
+- Vitest (unit tests)
+- ESLint 10 + Prettier + Husky
 
 ## License
 
-MIT – see [LICENSE](LICENSE).
-
-## Contributors
-
-<div align=center>
-
-[![][contributors]][contributors-graph]
-
-_It may take up to 24h for the [contrib.rocks][contrib-rocks] plugin to update._
-
-</div>
-
-[views]: https://komarev.com/ghpvc/?username=nextjs-template&label=view%20counter&color=red&style=flat
-[repo-size]: https://img.shields.io/github/repo-size/Khushal-ag/nextjs-template
-[issues]: https://img.shields.io/github/issues-raw/Khushal-ag/nextjs-template
-[license]: https://img.shields.io/github/license/Khushal-ag/nextjs-template
-[forks]: https://img.shields.io/github/forks/Khushal-ag/nextjs-template?style=flat
-[stars]: https://img.shields.io/github/stars/Khushal-ag/nextjs-template
-[contributors]: https://contrib.rocks/image?repo=Khushal-ag/nextjs-template&max=500
-[contributors-graph]: https://github.com/Khushal-ag/nextjs-template/graphs/contributors
-[contrib-rocks]: https://contrib.rocks/preview?repo=Khushal-ag%2Fnextjs-template
+MIT. See [LICENSE](LICENSE).

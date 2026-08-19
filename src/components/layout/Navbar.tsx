@@ -59,7 +59,6 @@ export function Navbar() {
 
   return (
     <nav className="relative z-30 flex h-16 w-full items-center justify-between border-b border-zinc-200 bg-white/70 px-6 backdrop-blur-md transition-colors duration-300 dark:border-zinc-800 dark:bg-zinc-950/70">
-      {/* Brand Logo */}
       <div className="flex items-center gap-3 select-none">
         <Image
           src="/icon.png"
@@ -75,9 +74,7 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Lesson Selector & History Controls */}
       <div className="flex items-center gap-4">
-        {/* Lesson dropdown selector */}
         {(() => {
           const activeTitle =
             currentLessonId === "sandbox" ? "Free Play Sandbox" : (
@@ -159,7 +156,6 @@ export function Navbar() {
 
         <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-800" />
 
-        {/* Action Controls */}
         <div className="flex items-center gap-1">
           <button
             onClick={undo}
@@ -189,9 +185,7 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Settings (Theme) */}
       <div className="flex items-center gap-2">
-        {/* Toggle Dark / Light Theme */}
         <button
           onClick={toggleTheme}
           title={

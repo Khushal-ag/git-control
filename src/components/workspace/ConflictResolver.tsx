@@ -7,14 +7,11 @@ import { useGitStore } from "@/store/git-store";
 export function ConflictResolver() {
   const { gitState, resolveConflictVisually } = useGitStore();
 
-  // Find any conflicting files in working directory
   const conflictingFiles = Object.values(gitState.workingDirectory).filter(
     (f) => f.content.includes("<<<<<<< HEAD"),
   );
 
   if (conflictingFiles.length === 0) {
-    // If no conflicts, show the Stash Stack visualizer instead!
-    // This is a great place to show the stashes, as requested by the PRD.
     return (
       <div className="flex h-full flex-col rounded-xl border border-zinc-200 bg-white p-5 font-sans transition-colors duration-300 dark:border-zinc-900 dark:bg-zinc-950">
         <h4 className="mb-4 flex items-center gap-1.5 text-xxs font-extrabold tracking-widest text-zinc-500 uppercase">
@@ -22,7 +19,6 @@ export function ConflictResolver() {
           <span>Stash Storage & Reflog</span>
         </h4>
 
-        {/* Stashes Stack */}
         <div className="flex-1 space-y-4 overflow-y-auto pr-0.5">
           <div>
             <h5 className="mb-2 flex items-center justify-between text-[10px] font-bold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
@@ -66,29 +62,42 @@ export function ConflictResolver() {
 
           <div className="h-px bg-zinc-200 dark:bg-zinc-900" />
 
-          {/* Reflog Overview */}
           <div>
             <h5 className="mb-2 text-[10px] font-bold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
               HEAD Reflog (Recent Movements)
             </h5>
             {gitState.reflog.length > 0 ?
               <div className="max-h-[160px] space-y-1.5 overflow-y-auto pr-1">
-                {gitState.reflog.slice(0, 6).map((entry, idx) => (
-                  <div
-                    key={entry.id}
-                    className="flex items-start gap-1.5 font-mono text-xxxxs leading-relaxed"
-                  >
-                    <span className="text-amber-600 dark:text-amber-500">
-                      {entry.nextHead.substring(0, 7)}
-                    </span>
-                    <span className="text-zinc-400 dark:text-zinc-500">
-                      HEAD@&#123;{idx}&#125;:
-                    </span>
-                    <span className="flex-1 truncate text-zinc-600 dark:text-zinc-400">
-                      {entry.action}
-                    </span>
-                  </div>
-                ))}
+                {gitState.reflog.slice(0, 6).map((entry, idx) => {
+                  const isReset = entry.action.includes("reset: ");
+                  return (
+                    <div
+                      key={entry.id}
+                      className="flex flex-col gap-0.5 font-mono text-xxxxs leading-relaxed"
+                    >
+                      <div className="flex items-start gap-1.5">
+                        <span className="text-amber-600 dark:text-amber-500">
+                          {entry.nextHead.substring(0, 7)}
+                        </span>
+                        <span className="text-zinc-400 dark:text-zinc-500">
+                          HEAD@&#123;{idx}&#125;:
+                        </span>
+                        <span className="flex-1 truncate text-zinc-600 dark:text-zinc-400">
+                          {entry.action}
+                        </span>
+                      </div>
+                      {isReset && entry.previousHead && (
+                        <p className="pl-1 text-[9px] text-rose-500 dark:text-rose-400">
+                          Lost commit: {entry.previousHead.substring(0, 7)}.
+                          Recover with{" "}
+                          <span className="font-bold">
+                            git checkout HEAD@{idx + 1}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             : <div className="rounded-lg border border-dashed border-zinc-200 py-6 text-center text-xxxxs text-zinc-400 dark:border-zinc-800 dark:text-zinc-600">
                 No reflog entries yet.
@@ -100,7 +109,6 @@ export function ConflictResolver() {
     );
   }
 
-  // Parse conflict contents for the first conflicting file
   const activeFile = conflictingFiles[0]!;
   const regex = /<<<<<<< HEAD\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> (.*)/;
   const match = activeFile.content.match(regex);
@@ -134,9 +142,7 @@ export function ConflictResolver() {
           were changed on both branches. Review differences below and resolve.
         </p>
 
-        {/* Side by side visual code block */}
         <div className="grid min-h-[140px] flex-1 grid-cols-2 gap-3">
-          {/* Ours (HEAD) */}
           <div className="flex flex-col overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50/20 dark:border-emerald-950 dark:bg-emerald-950/5">
             <div className="border-b border-emerald-200 bg-emerald-100 px-3 py-1.5 font-mono text-xxs font-bold text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-400">
               Current (HEAD / Ours)
@@ -152,7 +158,6 @@ export function ConflictResolver() {
             </button>
           </div>
 
-          {/* Theirs (Incoming Branch) */}
           <div className="flex flex-col overflow-hidden rounded-lg border border-purple-200 bg-purple-50/20 dark:border-purple-950 dark:bg-purple-950/5">
             <div className="border-b border-purple-200 bg-purple-100 px-3 py-1.5 font-mono text-xxs font-bold wrap-break-word text-purple-700 dark:border-purple-900/40 dark:bg-purple-950/30 dark:text-purple-400">
               Incoming ({targetBranchName})
@@ -169,7 +174,6 @@ export function ConflictResolver() {
           </div>
         </div>
 
-        {/* Accept Both Button */}
         <button
           onClick={() => resolveConflictVisually(activeFile.path, "both")}
           className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 py-2.5 text-xs font-bold text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-200 dark:hover:bg-zinc-800"

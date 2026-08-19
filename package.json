@@ -18,7 +18,8 @@
     "lint": "eslint . && tsc --noEmit",
     "lint:fix": "eslint . --fix",
     "type-check": "tsc --noEmit",
-    "ui": "bunx shadcn@latest",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "fmt:check": "prettier --check \"**/*.{ts,tsx,mdx,json}\" --cache",
     "fmt": "prettier --write \"**/*.{ts,tsx,mdx,json}\" --cache --experimental-ternaries",
     "clean": "rm -rf .next",
@@ -57,7 +58,8 @@
     "tailwind-animate": "^0.2.10",
     "tailwindcss": "^4.3.1",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.61.1"
+    "typescript-eslint": "^8.61.1",
+    "vitest": "^4.1.11"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

@@ -12,26 +12,9 @@ import {
   Target,
 } from "lucide-react";
 
+import { getCommandDoneFlags } from "@/lib/command-checklist";
 import { lessons } from "@/lib/lessons";
 import { useGitStore } from "@/store/git-store";
-
-// Compares a required command against one the learner actually ran,
-// ignoring formatting differences (quote style, extra whitespace) and
-// recognizing `git switch`/`git switch -c` as equivalent to
-// `git checkout`/`git checkout -b` since the lessons teach both as valid.
-function normalizeCommand(cmd: string): string {
-  return cmd
-    .trim()
-    .replace(/\s+/g, " ")
-    .replace(/['"]/g, '"')
-    .replace(/^git switch -c\b/, "git checkout -b")
-    .replace(/^git switch\b/, "git checkout");
-}
-
-function commandWasRun(required: string, log: string[]): boolean {
-  const target = normalizeCommand(required);
-  return log.some((entry) => normalizeCommand(entry) === target);
-}
 
 export function LessonPanel() {
   const {
@@ -46,7 +29,6 @@ export function LessonPanel() {
     setTerminalInput,
   } = useGitStore();
 
-  // Expose setter globally so that HTML onclick triggers it
   useEffect(() => {
     if (typeof window !== "undefined") {
       (
@@ -150,10 +132,8 @@ export function LessonPanel() {
 
   const isLastStep = currentStepIndex === lesson.steps.length - 1;
 
-  // Simple parser to render bold, list items, and code highlights
   const renderMarkdown = (text: string) => {
     return text.split("\n\n").map((para, i) => {
-      // Check for list items
       if (para.startsWith("- ") || para.startsWith("* ")) {
         return (
           <ul
@@ -175,7 +155,6 @@ export function LessonPanel() {
         );
       }
 
-      // Normal paragraph
       return (
         <p
           key={i}
@@ -204,7 +183,6 @@ export function LessonPanel() {
 
   return (
     <div className="flex h-full flex-col justify-between overflow-x-hidden border-r border-zinc-200 bg-zinc-50 p-6 text-zinc-600 transition-colors duration-300 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-      {/* Lesson Heading and description */}
       <div className="space-y-5 overflow-x-hidden overflow-y-auto pr-1">
         <div className="flex items-center justify-between">
           <span className="rounded border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-semibold text-orange-600 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-400">
@@ -224,10 +202,8 @@ export function LessonPanel() {
           </h3>
         </div>
 
-        {/* Dynamic step instructions */}
         <div className="space-y-3 pt-2">{renderMarkdown(step.explanation)}</div>
 
-        {/* Objective Box */}
         {step.objective && (
           <div
             className={`mt-5 rounded-xl border p-4 transition-all duration-300 ${
@@ -256,10 +232,6 @@ export function LessonPanel() {
               {step.objective.description}
             </p>
 
-            {/* Quick pre-fill command(s). Steps needing more than one command
-                show every remaining one, numbered, so it's never mistaken
-                for "the whole step" — running just the first isn't enough
-                to solve the objective. */}
             {!isObjectiveSolved &&
               step.commandPreset &&
               (() => {
@@ -267,15 +239,13 @@ export function LessonPanel() {
                   Array.isArray(step.commandPreset) ?
                     step.commandPreset
                   : [step.commandPreset];
-                const doneFlags = commands.map((cmd) =>
-                  commandWasRun(cmd, stepCommandLog),
-                );
+                const doneFlags = getCommandDoneFlags(commands, stepCommandLog);
                 const doneCount = doneFlags.filter(Boolean).length;
                 return (
                   <div className="mt-3 space-y-1.5">
                     {commands.length > 1 && (
                       <p className="text-xxs font-semibold text-zinc-400 dark:text-zinc-500">
-                        This step needs {commands.length} commands, in order —{" "}
+                        This step needs {commands.length} commands, in order.{" "}
                         {doneCount} of {commands.length} done:
                       </p>
                     )}
@@ -320,9 +290,28 @@ export function LessonPanel() {
           </div>
         )}
 
-        {/* Quiz Box */}
         {step.quiz && (
-          <div className="mt-5 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40">
+          <div
+            className={`mt-5 rounded-xl border p-4 shadow-sm transition-all duration-300 ${
+              isObjectiveSolved ?
+                "border-emerald-500/30 bg-emerald-50 shadow-md shadow-emerald-500/5 dark:bg-emerald-950/15"
+              : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900/40"
+            }`}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
+                <Target className="size-4 text-orange-500" />
+                <span>Quiz Objective</span>
+              </div>
+              {isObjectiveSolved ?
+                <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle className="size-3.5" /> Solved
+                </span>
+              : <span className="text-xs font-medium text-amber-500">
+                  Pending
+                </span>
+              }
+            </div>
             <h4 className="mb-3 text-sm font-bold text-zinc-800 dark:text-zinc-100">
               {step.quiz.question}
             </h4>
@@ -330,9 +319,6 @@ export function LessonPanel() {
               {step.quiz.options.map((opt, idx) => {
                 const isSelected = quizAnsweredIdx === idx;
                 const isCorrect = step.quiz!.answerIdx === idx;
-                // Only lock the quiz once the correct answer has been found;
-                // a wrong pick should stay retryable in place instead of
-                // permanently disabling every option.
                 const isSolved = quizAnsweredIdx === step.quiz!.answerIdx;
 
                 let btnStyle =
@@ -374,7 +360,6 @@ export function LessonPanel() {
           </div>
         )}
       </div>
-      {/* Footer Navigation */}
       {(() => {
         const isBackDisabled = currentStepIndex === 0;
         const isNextClickable =
@@ -413,7 +398,6 @@ export function LessonPanel() {
               <span>Back</span>
             </button>
 
-            {/* Step progress dots */}
             <div className="flex gap-1.5">
               {lesson.steps.map((_, i) => (
                 <div

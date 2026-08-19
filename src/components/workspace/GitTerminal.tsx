@@ -37,7 +37,6 @@ export function GitTerminal() {
     terminalLogs,
     runCommand,
     terminalInputHistory,
-    largeFonts,
     terminalInput,
     setTerminalInput,
   } = useGitStore();
@@ -49,14 +48,12 @@ export function GitTerminal() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto scroll to bottom of terminal
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [terminalLogs]);
 
-  // Handle autocomplete matching
   useEffect(() => {
     const trimmed = terminalInput.trim();
     if (!trimmed) {
@@ -80,7 +77,6 @@ export function GitTerminal() {
     setHistoryIndex(null);
     setSuggestions([]);
 
-    // Maintain input focus
     setTimeout(() => {
       inputRef.current?.focus();
     }, 10);
@@ -120,11 +116,9 @@ export function GitTerminal() {
     }
   };
 
-  // Convert ansi escapes to styled elements (optimized for dark macOS terminal canvas)
   const parseAnsiLine = (line: string) => {
     if (!line) return <span>&nbsp;</span>;
 
-    // Check if it is a prompt line (starts with $)
     if (line.startsWith("$ ")) {
       const commandText = line.substring(2);
       const commandParts = commandText.split(" ");
@@ -149,7 +143,6 @@ export function GitTerminal() {
       );
     }
 
-    // Check if it is an error or fatal output line
     if (
       line.startsWith("fatal:") ||
       line.toLowerCase().includes("error") ||
@@ -162,7 +155,6 @@ export function GitTerminal() {
       );
     }
 
-    // Check if it is a success/info status output line
     if (
       line.startsWith("Initialized") ||
       line.startsWith("Wrote to") ||
@@ -179,7 +171,6 @@ export function GitTerminal() {
       );
     }
 
-    // General ANSI color codes parser
     /* eslint-disable-next-line no-control-regex */
     const redRegex = /\u001b\[31m([\s\S]*?)\u001b\[m/g;
     /* eslint-disable-next-line no-control-regex */
@@ -214,28 +205,22 @@ export function GitTerminal() {
   return (
     <div
       onClick={() => inputRef.current?.focus()}
-      className={`flex h-full flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white font-mono text-zinc-800 shadow-2xl transition-colors duration-300 select-none dark:border-[#2e2e33] dark:bg-[#0c0c0e] dark:text-[#d4d4d8] ${
-        largeFonts ? "text-base" : "text-xs"
-      }`}
+      className="flex h-full flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white font-mono text-xs text-zinc-800 shadow-2xl transition-colors duration-300 select-none dark:border-[#2e2e33] dark:bg-[#0c0c0e] dark:text-[#d4d4d8]"
     >
-      {/* macOS Terminal Title Bar */}
       <div className="relative flex h-9 shrink-0 items-center justify-between border-b border-zinc-200 bg-zinc-100 px-4 transition-colors duration-300 dark:border-[#202024] dark:bg-[#1a1a1e]">
-        {/* Traffic Light Dots on Left */}
         <div className="z-10 flex gap-1.5">
           <div className="size-2.5 rounded-full bg-[#FF5F56]" />
           <div className="size-2.5 rounded-full bg-[#FFBD2E]" />
           <div className="size-2.5 rounded-full bg-[#27C93F]" />
         </div>
-        {/* Centered Title */}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <span className="font-sans text-xxs font-bold tracking-wide text-zinc-500 dark:text-zinc-400">
-            zsh — gitcontrol
+            zsh · gitcontrol
           </span>
         </div>
-        <div className="size-3 w-12" /> {/* empty spacer */}
+        <div className="size-3 w-12" />{" "}
       </div>
 
-      {/* Logs output area */}
       <div
         ref={scrollRef}
         className="scrollbar-thin flex-1 scrollbar-thumb-zinc-200 space-y-1.5 overflow-y-auto p-4 select-text dark:scrollbar-thumb-zinc-800"
@@ -247,7 +232,6 @@ export function GitTerminal() {
         ))}
       </div>
 
-      {/* Suggestion autocomplete overlay */}
       {suggestions.length > 0 && (
         <div className="relative mx-4 mb-1">
           <div className="absolute bottom-full left-0 z-20 w-64 rounded-lg border border-zinc-200 bg-white p-1 shadow-lg shadow-zinc-200/50 backdrop-blur-xs transition-colors duration-300 dark:border-zinc-800 dark:bg-zinc-900 dark:bg-zinc-900/95 dark:shadow-black/80">
@@ -280,7 +264,6 @@ export function GitTerminal() {
         </div>
       )}
 
-      {/* Input row */}
       <form
         onSubmit={handleSubmit}
         className="flex h-11 shrink-0 items-center border-t border-zinc-200 bg-white px-4 transition-colors duration-300 dark:border-[#1e1e22] dark:bg-[#0c0c0e]"

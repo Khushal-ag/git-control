@@ -40,7 +40,7 @@ export default function ErrorBoundary({
         </h1>
         <p className="mx-auto max-w-sm text-sm text-zinc-500 dark:text-zinc-400">
           Something crashed while rendering. Your repository only lives in this
-          browser tab, so reloading is the fastest way back — you&apos;ll just
+          browser tab, so reloading is the fastest way back. You&apos;ll just
           lose the current sandbox/lesson progress.
         </p>
         {error.message && (
@@ -59,9 +59,6 @@ export default function ErrorBoundary({
         </button>
         <button
           onClick={() => {
-            // A soft React re-render (reset()) can't clear the in-memory
-            // Zustand store if that's what's corrupted — a full reload
-            // reinitializes it from scratch, which is the reliable fix.
             window.location.href = "/";
           }}
           className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-orange-600 active:scale-95"

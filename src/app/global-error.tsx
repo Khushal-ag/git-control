@@ -6,10 +6,6 @@ import { AlertOctagon, RotateCcw } from "lucide-react";
 
 import "@/styles/globals.css";
 
-// Renders only when the root layout itself throws, so it must supply its
-// own <html>/<body> — the normal layout is bypassed entirely. Kept minimal
-// and dependency-free (no fonts, no theme sync) since this is the
-// last-resort fallback and shouldn't assume anything else still works.
 export default function GlobalError({
   error,
   reset,

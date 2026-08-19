@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 
 import "@/styles/globals.css";
 
-import { TailwindIndicator } from "@/components/tailwind-indicator";
 import { siteConfig } from "@/config/site";
 import * as fonts from "@/lib/fonts";
 import { cn } from "@/lib/utils";
@@ -17,14 +16,6 @@ const jsonLd = {
     "@type": "Person",
     name: siteConfig.creator,
     url: siteConfig.authors[0]?.url,
-  },
-  potentialAction: {
-    "@type": "SearchAction",
-    target: {
-      "@type": "EntryPoint",
-      urlTemplate: `${siteConfig.url}/?q={search_term_string}`,
-    },
-    "query-input": "required name=search_term_string",
   },
 };
 
@@ -46,7 +37,6 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         {children}
-        <TailwindIndicator />
       </body>
     </html>
   );

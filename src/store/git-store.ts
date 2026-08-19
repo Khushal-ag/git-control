@@ -16,31 +16,23 @@ interface GitStore {
   terminalLogs: string[];
   terminalInputHistory: string[];
   terminalInput: string;
-  currentLessonId: string; // "sandbox" or lesson.id
+  currentLessonId: string;
   currentStepIndex: number;
   isObjectiveSolved: boolean;
   quizAnsweredIdx: number | null;
-  // Sub-commands run since the current lesson step was entered, used to
-  // check off individual commands in a multi-command step's checklist.
-  // Reset whenever the active step changes.
   stepCommandLog: string[];
 
-  // Settings
-  largeFonts: boolean;
   theme: "dark" | "light";
 
-  // Actions
   runCommand: (command: string) => void;
   setTerminalInput: (val: string) => void;
   undo: () => void;
   redo: () => void;
   resetWorkspace: () => void;
   selectLesson: (lessonId: string) => void;
-  goToStep: (index: number) => void;
   nextStep: () => void;
   prevStep: () => void;
 
-  // File edits via UI
   createFile: (path: string, content: string) => void;
   editFile: (path: string, content: string) => void;
   deleteFile: (path: string) => void;
@@ -49,7 +41,6 @@ interface GitStore {
     choice: "ours" | "theirs" | "both",
   ) => void;
 
-  setLargeFonts: (enabled: boolean) => void;
   toggleTheme: () => void;
   answerQuiz: (answerIdx: number) => void;
 }
@@ -59,7 +50,6 @@ const cloneState = (state: GitState): GitState => {
 };
 
 export const useGitStore = create<GitStore>((set, get) => {
-  // Validate if objective is met
   const checkObjective = (
     state: GitState,
     lessonId: string,
@@ -94,8 +84,7 @@ export const useGitStore = create<GitStore>((set, get) => {
     quizAnsweredIdx: null,
     stepCommandLog: [],
 
-    largeFonts: false,
-    theme: "light", // default theme (will be hydrated in page client-side)
+    theme: "light",
 
     runCommand: (command) => {
       const {
@@ -106,18 +95,13 @@ export const useGitStore = create<GitStore>((set, get) => {
         terminalInputHistory,
       } = get();
 
-      // Keep track of original state for undo
       const originalStateClone = cloneState(gitState);
 
-      // Split chained commands by '&&'
       const subCommands = command.split("&&").map((cmd) => cmd.trim());
 
       let currentGitState = gitState;
       let nextLogs = [...get().terminalLogs];
       nextLogs.push(`$ ${command}`);
-      // Only successfully-executed sub-commands count toward a lesson
-      // step's per-command checklist — a typo that errors out shouldn't
-      // check itself off.
       const succeededSubCommands: string[] = [];
 
       for (const subCmd of subCommands) {
@@ -132,9 +116,6 @@ export const useGitStore = create<GitStore>((set, get) => {
             currentGitState,
           ));
         } catch (err) {
-          // A bug in the engine shouldn't silently swallow the command or
-          // crash the terminal — surface it and leave state untouched, same
-          // as a real shell reporting a failure and staying put.
           console.error("GitControl engine error for command:", subCmd, err);
           output = [
             `error: internal simulator error while running '${subCmd}'`,
@@ -153,7 +134,7 @@ export const useGitStore = create<GitStore>((set, get) => {
         }
 
         if (error) {
-          break; // Stop execution on error, matching real shell && logic
+          break;
         }
         succeededSubCommands.push(subCmd);
       }
@@ -164,7 +145,6 @@ export const useGitStore = create<GitStore>((set, get) => {
         currentStepIndex,
       );
 
-      // Add to input history if not empty
       const nextInputHistory = [...terminalInputHistory];
       if (command.trim()) {
         nextInputHistory.push(command);
@@ -173,12 +153,12 @@ export const useGitStore = create<GitStore>((set, get) => {
       set({
         gitState: currentGitState,
         historyStack: [...historyStack, originalStateClone],
-        redoStack: [], // clear redo
+        redoStack: [],
         terminalLogs: nextLogs,
         terminalInputHistory: nextInputHistory,
         stepCommandLog: [...get().stepCommandLog, ...succeededSubCommands],
         isObjectiveSolved: solved,
-        terminalInput: "", // Clear input on run
+        terminalInput: "",
       });
     },
 
@@ -262,7 +242,6 @@ export const useGitStore = create<GitStore>((set, get) => {
       const initialRepo = createInitialState();
 
       if (lessonId === "basics") {
-        // Basics starts with empty directory to teach creation/staging from scratch
         initialRepo.workingDirectory = {};
       } else if (
         lessonId === "branching" ||
@@ -271,10 +250,6 @@ export const useGitStore = create<GitStore>((set, get) => {
         lessonId === "recovery" ||
         lessonId === "stash"
       ) {
-        // Pre-initialize and create an initial commit to save time. Uses a
-        // real generated hash (not a literal "init-c" placeholder) so it
-        // reads the same as every other commit in the graph instead of
-        // looking like an unexplained special case.
         const seedCommitId = generateHash();
         initialRepo.initialized = true;
         initialRepo.currentBranch = "main";
@@ -296,14 +271,12 @@ export const useGitStore = create<GitStore>((set, get) => {
             },
           },
         };
-        // sync WD files state
         if (initialRepo.workingDirectory["README.md"]) {
           initialRepo.workingDirectory["README.md"].state = "committed";
         }
         if (initialRepo.workingDirectory["index.js"]) {
           initialRepo.workingDirectory["index.js"].state = "committed";
         }
-        // sync staging area cache
         initialRepo.stagingArea = {
           ...initialRepo.commits[seedCommitId]?.files,
         };
@@ -327,18 +300,6 @@ export const useGitStore = create<GitStore>((set, get) => {
       });
     },
 
-    goToStep: (index) => {
-      const { currentLessonId, gitState } = get();
-      const solved = checkObjective(gitState, currentLessonId, index);
-
-      set({
-        currentStepIndex: index,
-        isObjectiveSolved: solved,
-        quizAnsweredIdx: null,
-        stepCommandLog: [],
-      });
-    },
-
     nextStep: () => {
       const { currentLessonId, currentStepIndex, gitState, selectLesson } =
         get();
@@ -348,7 +309,6 @@ export const useGitStore = create<GitStore>((set, get) => {
       if (!lesson) return;
 
       if (currentStepIndex >= lesson.steps.length - 1) {
-        // Last step, load next lesson or sandbox
         const lessonIdx = lessons.findIndex((l) => l.id === currentLessonId);
         if (lessonIdx !== -1 && lessonIdx < lessons.length - 1) {
           const nextLesson = lessons[lessonIdx + 1]!;
@@ -421,7 +381,6 @@ export const useGitStore = create<GitStore>((set, get) => {
       const nextWD = { ...gitState.workingDirectory };
       const existing = nextWD[path];
 
-      // If file was committed or staged, editing shifts state to modified
       let fileState: FileState = "untracked";
       if (existing) {
         fileState =
@@ -486,12 +445,6 @@ export const useGitStore = create<GitStore>((set, get) => {
       const file = gitState.workingDirectory[path];
       if (!file) return;
 
-      // Extract parts from conflict marker
-      // <<<<<<< HEAD
-      // ours
-      // =======
-      // theirs
-      // >>>>>>> branch
       const regex = /<<<<<<< HEAD\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> .*/;
       const match = file.content.match(regex);
       if (!match) return;
@@ -532,10 +485,6 @@ export const useGitStore = create<GitStore>((set, get) => {
           `Resolved conflict in ${path} using ${choice}`,
         ],
       });
-    },
-
-    setLargeFonts: (enabled) => {
-      set({ largeFonts: enabled });
     },
 
     toggleTheme: () => {

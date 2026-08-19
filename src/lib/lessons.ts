@@ -7,11 +7,8 @@ export interface LessonObjective {
 
 export interface LessonStep {
   title: string;
-  explanation: string; // Markdown supported
+  explanation: string;
   objective?: LessonObjective;
-  // A single command, or the full ordered sequence of commands this step
-  // requires. Steps needing more than one command must list ALL of them
-  // here so the UI can surface every remaining step, not just the first.
   commandPreset?: string | string[];
   quiz?: {
     question: string;
@@ -39,7 +36,7 @@ export const lessons: Lesson[] = [
     steps: [
       {
         title: "Welcome to Git!",
-        explanation: `Welcome to **GitControl**!\n\nGit is a tool that saves snapshots of your code as you work, so you can experiment freely, undo mistakes, and always get back to a version that worked — alone or with a whole team (that's what "**version control**" means).\n\nIn this playground, you can experiment with real Git commands in the terminal and instantly see their effects on the commit graph and the files workspace.\n\nClick **Next** to begin!`,
+        explanation: `Welcome to **GitControl**!\n\nGit is a tool that saves snapshots of your code as you work, so you can experiment freely, undo mistakes, and always get back to a version that worked, whether you're working alone or with a whole team (that's what "**version control**" means).\n\nIn this playground, you can experiment with real Git commands in the terminal and instantly see their effects on the commit graph and the files workspace.\n\nClick **Next** to begin!`,
       },
       {
         title: "Initializing a Repository",
@@ -131,7 +128,7 @@ export const lessons: Lesson[] = [
       },
       {
         title: "Committing on a Branch",
-        explanation: `Let's make a change on our branch! We need to follow these steps:\n\n1. **Modify the file:** Add some login code to our file:\n\`echo "// login page logic" >> index.js\`\n\n2. **Stage the changes:** Prepare the file to be committed:\n\`git add index.js\`\n\n3. **Commit the work:** Save the snapshot on our feature branch:\n\`git commit -m "Add login framework"\`\n\nWatch the \`feature/login\` pointer advance ahead in the commit graph, while \`main\` stays exactly where it was. That gap between them is what "your branch is ahead" means — the history will only visually fork once \`main\` gets a commit of its own too.`,
+        explanation: `Let's make a change on our branch! We need to follow these steps:\n\n1. **Modify the file:** Add some login code to our file:\n\`echo "// login page logic" >> index.js\`\n\n2. **Stage the changes:** Prepare the file to be committed:\n\`git add index.js\`\n\n3. **Commit the work:** Save the snapshot on our feature branch:\n\`git commit -m "Add login framework"\`\n\nWatch the \`feature/login\` pointer advance ahead in the commit graph, while \`main\` stays exactly where it was. That gap between them is what "your branch is ahead" means. The history will only visually fork once \`main\` gets a commit of its own too.`,
         objective: {
           description: "Stage and commit a change on the feature branch.",
           validate: (state: GitState) => {
@@ -153,7 +150,7 @@ export const lessons: Lesson[] = [
       },
       {
         title: "Detached HEAD Mode",
-        explanation: `If you checkout a specific commit hash instead of a branch, Git enters a state called **Detached HEAD**.\n\nIn this mode, HEAD points directly to a commit rather than a branch label. **Be careful here:** if you make new commits while detached and then switch to a branch without first saving your work (e.g. with \`git branch new-name\`), those commits can become orphaned and hard to find — though as you'll see in the Recovery lesson, Git almost never truly deletes them.\n\nLet's see this in action by checking out your first commit. Find its hash (e.g. from the commit graph or log) and check it out.\n\n**Step to perform:**\n1. **Checkout a commit hash directly:** Point HEAD straight to the commit hash without attaching to any branch label:\n\`git checkout <first-commit-hash>\``,
+        explanation: `If you checkout a specific commit hash instead of a branch, Git enters a state called **Detached HEAD**.\n\nIn this mode, HEAD points directly to a commit rather than a branch label. **Be careful here:** if you make new commits while detached and then switch to a branch without first saving your work (e.g. with \`git branch new-name\`), those commits can become orphaned and hard to find. As you'll see in the Recovery lesson, Git almost never truly deletes them.\n\nLet's see this in action by checking out your first commit. Find its hash (e.g. from the commit graph or log) and check it out.\n\n**Step to perform:**\n1. **Checkout a commit hash directly:** Point HEAD straight to the commit hash without attaching to any branch label:\n\`git checkout <first-commit-hash>\``,
         objective: {
           description:
             "Enter Detached HEAD mode by checking out a commit hash.",
@@ -174,7 +171,7 @@ export const lessons: Lesson[] = [
     steps: [
       {
         title: "Bringing History Together",
-        explanation: `Once work on a feature branch is completed, you want to merge it back into your primary branch (usually \`main\`).\n\nThere are two main merge scenarios:\n1. **Fast-forward**: Your current branch hasn't moved since the branch you're merging in was created — it has no commits of its own to reconcile. Git just slides your branch pointer forward to match, no new commit needed.\n2. **Three-way merge**: Both branches have progressed independently since they diverged. Git creates a new **merge commit** with two parents to tie them back together.\n\nClick **Next** to try a Fast-forward merge.`,
+        explanation: `Once work on a feature branch is completed, you want to merge it back into your primary branch (usually \`main\`).\n\nThere are two main merge scenarios:\n1. **Fast-forward**: Your current branch hasn't moved since the branch you're merging in was created, so it has no commits of its own to reconcile. Git just slides your branch pointer forward to match, no new commit needed.\n2. **Three-way merge**: Both branches have progressed independently since they diverged. Git creates a new **merge commit** with two parents to tie them back together.\n\nClick **Next** to try a Fast-forward merge.`,
       },
       {
         title: "Preparing a Feature Branch",
@@ -233,7 +230,6 @@ export const lessons: Lesson[] = [
           description:
             "Trigger a merge conflict by running git merge branch-a.",
           validate: (state: GitState) => {
-            // Check if any file in working directory contains conflict markers
             return Object.values(state.workingDirectory).some((f) =>
               f.content.includes("<<<<<<< HEAD"),
             );
@@ -257,7 +253,6 @@ export const lessons: Lesson[] = [
         objective: {
           description: "Resolve the conflict, stage the file, and commit.",
           validate: (state: GitState) => {
-            // Check if conflict markers are gone, and a new commit is created
             const hasConflictMarkers = Object.values(
               state.workingDirectory,
             ).some((f) => f.content.includes("<<<<<<<"));
@@ -287,7 +282,7 @@ export const lessons: Lesson[] = [
     steps: [
       {
         title: "Rebase vs. Merge",
-        explanation: `Merging preserves history exactly as it happened, but leaves the graph a little messy with an extra merge commit. \n\n**Rebase** takes the commits you created on a branch, "rewinds" them, and replays them one-by-one on top of the target branch's latest commit. This results in a perfectly linear project history.\n\n**Important:** never rebase commits that have already been pushed and shared with others. Rebase rewrites each commit into a brand-new one with a different hash, so doing this on shared history forces everyone else to reconcile two conflicting timelines. Only rebase branches that are still private to you — like a local feature branch nobody else has pulled yet.\n\nLet's set up a rebase challenge. Click **Next**!`,
+        explanation: `Merging preserves history exactly as it happened, but leaves the graph a little messy with an extra merge commit. \n\n**Rebase** takes the commits you created on a branch, "rewinds" them, and replays them one-by-one on top of the target branch's latest commit. This results in a perfectly linear project history.\n\n**Important:** never rebase commits that have already been pushed and shared with others. Rebase rewrites each commit into a brand-new one with a different hash, so doing this on shared history forces everyone else to reconcile two conflicting timelines. Only rebase branches that are still private to you, like a local feature branch nobody else has pulled yet.\n\nLet's set up a rebase challenge. Click **Next**!`,
       },
       {
         title: "Rebasing Commits",
@@ -299,7 +294,6 @@ export const lessons: Lesson[] = [
             const mainCId = state.branches["main"]?.commitId;
             if (!featCId || !mainCId) return false;
 
-            // Traverse feature commits to verify main's latest commit is in the parent history
             let curr = featCId;
             let foundMain = false;
             while (curr) {
@@ -358,7 +352,7 @@ export const lessons: Lesson[] = [
       },
       {
         title: "Reverting a Commit",
-        explanation: `Let's say a commit introduced a bug, and you want to undo *just that change* — without touching any of the good work that came before or after it.\n\nFirst, let's simulate that bad commit:\n\n1. **Introduce a bug:** Make a change and commit it, as if it were real (broken) code:\n\`echo "// buggy code" >> index.js\`\n\`git add index.js\`\n\`git commit -m "Introduce a bug"\`\n\nIf you have already pushed changes to a shared branch, you should *never* rewrite history using reset.\n\nInstead, use \`git revert\`. This creates a **new** commit that applies the exact opposite of the target commit's changes — undoing it without erasing or rewriting any history.\n\n2. **Revert the buggy commit:** Find its hash in the commit graph and revert it:\n\`git revert <bug-commit-hash>\``,
+        explanation: `Let's say a commit introduced a bug, and you want to undo *just that change* without touching any of the good work that came before or after it.\n\nFirst, let's simulate that bad commit:\n\n1. **Introduce a bug:** Make a change and commit it, as if it were real (broken) code:\n\`echo "// buggy code" >> index.js\`\n\`git add index.js\`\n\`git commit -m "Introduce a bug"\`\n\nIf you have already pushed changes to a shared branch, you should *never* rewrite history using reset.\n\nInstead, use \`git revert\`. This creates a **new** commit that applies the exact opposite of the target commit's changes, undoing it without erasing or rewriting any history.\n\n2. **Revert the buggy commit:** Find its hash in the commit graph and revert it:\n\`git revert <bug-commit-hash>\``,
         objective: {
           description:
             "Commit a change, then revert it to safely undo its effects.",
@@ -382,7 +376,6 @@ export const lessons: Lesson[] = [
         objective: {
           description: "Perform a hard reset to HEAD~1.",
           validate: (state: GitState) => {
-            // Find hard reset in reflog
             return state.reflog.some(
               (e) => e.action.includes("reset: ") && e.action.includes("hard"),
             );
@@ -392,12 +385,11 @@ export const lessons: Lesson[] = [
       },
       {
         title: "The Magic of Reflog",
-        explanation: `Oh no! You performed a hard reset and "lost" your commit! \n\nActually, Git doesn't delete commits immediately. HEAD changes are recorded in the **Reflog** (Reference Log).\n\nLet's look at the reflog to find the hash of the commit you just deleted, and check it out to recover it step-by-step:\n\n1. **View reference log history:** See the list of all recent updates to HEAD:\n\`git reflog\`\n\n2. **Checkout the deleted commit:** Find the hash prior to the reset (e.g. \`HEAD@{1}\`) and switch directly to it:\n\`git checkout <commit-hash>\``,
+        explanation: `Oh no! You performed a hard reset and "lost" your commit! \n\nActually, Git doesn't delete commits immediately. HEAD changes are recorded in the **Reflog** (Reference Log).\n\nLet's look at the reflog to find the commit you just deleted, and check it out to recover it step-by-step:\n\n1. **View reference log history:** See the list of all recent updates to HEAD:\n\`git reflog\`\n\n2. **Checkout the deleted commit:** The reset is at \`HEAD@{0}\`. The commit *before* that move lives at \`HEAD@{1}\`. Recover it with:\n\`git checkout HEAD@{1}\`\n\n*(You can also click the commit hash from \`HEAD@{1}\` in the terminal output or the reflog panel on the right.)*`,
         objective: {
           description:
             "Recover the lost commit by checking its hash out from the reflog.",
           validate: (state: GitState) => {
-            // Checked out a commit directly that matches the pre-reset commit hash in reflog history
             const reflogEntries = state.reflog;
             if (reflogEntries.length < 2) return false;
             const currentHead =
@@ -405,14 +397,13 @@ export const lessons: Lesson[] = [
                 state.branches[state.currentBranch]?.commitId
               : state.HEAD) || "";
 
-            // Check if current HEAD is a hash that matches previousHead of the reset action
             const resetAction = reflogEntries.find((e) =>
               e.action.includes("reset: "),
             );
             return !!(resetAction && resetAction.previousHead === currentHead);
           },
         },
-        commandPreset: "git reflog",
+        commandPreset: ["git reflog", "git checkout HEAD@{1}"],
       },
     ],
   },

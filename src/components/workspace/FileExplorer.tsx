@@ -33,7 +33,6 @@ export function FileExplorer() {
   const [editingPath, setEditingPath] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
 
-  // Handler to open visual file creation form
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPath.trim()) return;
@@ -43,7 +42,6 @@ export function FileExplorer() {
     setIsCreating(false);
   };
 
-  // Handler to open visual editing panel
   const startEdit = (path: string, content: string) => {
     setEditingPath(path);
     setEditingContent(content);
@@ -57,7 +55,6 @@ export function FileExplorer() {
     }
   };
 
-  // Get active commit files to list committed files
   const activeHeadCommitId =
     gitState.currentBranch ?
       gitState.branches[gitState.currentBranch]?.commitId
@@ -66,14 +63,10 @@ export function FileExplorer() {
     activeHeadCommitId ? gitState.commits[activeHeadCommitId] : null;
   const committedFiles = activeCommit ? activeCommit.files : {};
 
-  // Group working directory files
+  // Staged snapshot can differ from HEAD even when WD state is "modified" again.
   const workingFiles = Object.values(gitState.workingDirectory).filter(
     (file) => file.state !== "staged",
   );
-  // A file belongs in the Staging Area lane whenever its staged snapshot
-  // differs from HEAD, regardless of whether it was edited again afterwards
-  // (which flips its working-directory state to "modified" but leaves the
-  // stale staged snapshot in place, still pending for the next commit).
   const stagedFiles = Object.keys(gitState.stagingArea)
     .filter((path) => gitState.stagingArea[path] !== committedFiles[path])
     .map((path) => ({
@@ -81,7 +74,6 @@ export function FileExplorer() {
       content: gitState.stagingArea[path] || "",
     }));
 
-  // Helper badges mapping
   const getStateColor = (state: string) => {
     switch (state) {
       case "staged":
@@ -90,19 +82,17 @@ export function FileExplorer() {
         return "border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-500/25 dark:bg-amber-950/20 dark:text-amber-400";
       case "committed":
         return "border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-500/25 dark:bg-emerald-950/20 dark:text-emerald-400";
-      default: // untracked
+      default:
         return "border-zinc-200 bg-zinc-100 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400";
     }
   };
 
-  // Checks if a file is conflicting
   const isConflicting = (content: string) => {
     return content.includes("<<<<<<< HEAD");
   };
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white font-sans text-zinc-800 transition-colors duration-300 dark:border-zinc-900 dark:bg-zinc-950 dark:text-zinc-300">
-      {/* File Workspace Header */}
       <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 px-4 py-2.5 dark:border-zinc-900 dark:bg-zinc-900/40">
         <div className="flex items-center gap-2">
           <FileText className="size-4 text-orange-500" />
@@ -111,7 +101,6 @@ export function FileExplorer() {
           </span>
         </div>
 
-        {/* Create new file button */}
         {gitState.initialized && (
           <button
             onClick={() => setIsCreating(true)}
@@ -123,9 +112,7 @@ export function FileExplorer() {
         )}
       </div>
 
-      {/* Workspace columns */}
       <div className="flex scrollbar-thin flex-1 scrollbar-thumb-zinc-200 divide-x divide-zinc-200 overflow-x-auto overflow-y-hidden select-none dark:scrollbar-thumb-zinc-800 dark:divide-zinc-900">
-        {/* LANE 1: Working Directory */}
         <div className="flex w-[210px] min-w-[210px] flex-1 flex-col p-4 md:w-auto md:min-w-0">
           <div className="mb-3 flex items-center justify-between">
             <h4 className="text-xxs font-extrabold tracking-widest text-zinc-500 uppercase">
@@ -162,7 +149,6 @@ export function FileExplorer() {
                         </span>
                       </div>
 
-                      {/* Action buttons */}
                       <div className="flex items-center gap-1">
                         {!conf && (
                           <button
@@ -192,7 +178,6 @@ export function FileExplorer() {
                       </div>
                     </div>
 
-                    {/* Conflict buttons inline */}
                     {conf && (
                       <div className="mt-3 space-y-1.5 border-t border-rose-200 pt-2.5 dark:border-rose-900/35">
                         <span className="flex items-center gap-1 text-[10px] font-semibold text-rose-600 dark:text-rose-400">
@@ -239,7 +224,6 @@ export function FileExplorer() {
           </div>
         </div>
 
-        {/* LANE 2: Staging Area */}
         <div className="flex w-[210px] min-w-[210px] flex-1 flex-col p-4 md:w-auto md:min-w-0">
           <div className="mb-3 flex items-center justify-between">
             <h4 className="text-xxs font-extrabold tracking-widest text-zinc-500 uppercase">
@@ -288,7 +272,6 @@ export function FileExplorer() {
           </div>
         </div>
 
-        {/* LANE 3: Local Repository */}
         <div className="flex w-[210px] min-w-[210px] flex-1 flex-col bg-zinc-50/30 p-4 md:w-auto md:min-w-0 dark:bg-zinc-950/20">
           <div className="mb-3 flex items-center justify-between">
             <h4 className="text-xxs font-extrabold tracking-widest text-zinc-500 uppercase">
@@ -330,7 +313,6 @@ export function FileExplorer() {
         </div>
       </div>
 
-      {/* Visual File Creator Dialog Modal */}
       {isCreating && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
@@ -393,7 +375,6 @@ export function FileExplorer() {
         </div>
       )}
 
-      {/* Visual Inline Editor Modal */}
       {editingPath && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
           <div className="w-full max-w-lg rounded-xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
@@ -413,7 +394,6 @@ export function FileExplorer() {
             </div>
 
             <div className="relative mb-4 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-950">
-              {/* Row/Line numbers mock */}
               <div className="flex font-mono text-xs select-none">
                 <div className="mr-3 border-r border-zinc-200 pr-3 text-right text-zinc-400 select-none dark:border-zinc-900 dark:text-zinc-700">
                   {editingContent.split("\n").map((_, i) => (

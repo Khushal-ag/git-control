@@ -3,29 +3,19 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Custom theme: fonts use CSS variables from next/font (applied on body) */
+
 @theme {
   --font-inter: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-poppins: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono), ui-monospace, monospace;
 
-  --text-xxs: 0.625rem; /* 10px */
-  --text-xxxs: 0.5625rem; /* 9px */
-  --text-xxxxs: 0.5rem; /* 8px */
+  --text-xxs: 0.625rem; 
+  --text-xxxs: 0.5625rem; 
+  --text-xxxxs: 0.5rem; 
 
   --shadow-xxs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
 }
 
-@layer base {
-  .container {
-    margin-inline: auto;
-    padding-inline: 1rem;
-    max-width: 1280px;
-  }
-}
 
-/* Thin themed scrollbars (no plugin installed; matches the classnames used
-   throughout the workspace panels: scrollbar-thin / scrollbar-thumb-*). */
 @utility scrollbar-thin {
   scrollbar-width: thin;
   &::-webkit-scrollbar {
@@ -51,17 +41,5 @@
   scrollbar-color: var(--color-zinc-800) transparent;
   &::-webkit-scrollbar-thumb {
     background-color: var(--color-zinc-800);
-  }
-}
-
-/* Breakpoint indicator: show only in xl range (80rem–96rem) to avoid conflicting display utilities */
-@layer utilities {
-  .indicator-only-xl {
-    display: none;
-  }
-  @media (min-width: 80rem) and (max-width: 95.9975rem) {
-    .indicator-only-xl {
-      display: inline-block;
-    }
   }
 }
