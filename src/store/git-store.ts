@@ -21,6 +21,7 @@ interface GitStore {
   isObjectiveSolved: boolean;
   quizAnsweredIdx: number | null;
   stepCommandLog: string[];
+  conflictDialogOpen: boolean;
 
   theme: "dark" | "light";
 
@@ -40,6 +41,8 @@ interface GitStore {
     path: string,
     choice: "ours" | "theirs" | "both",
   ) => void;
+  openConflictDialog: () => void;
+  closeConflictDialog: () => void;
 
   toggleTheme: () => void;
   answerQuiz: (answerIdx: number) => void;
@@ -67,6 +70,11 @@ export const useGitStore = create<GitStore>((set, get) => {
     }
   };
 
+  const hasConflictMarkers = (state: GitState) =>
+    Object.values(state.workingDirectory).some((f) =>
+      f.content.includes("<<<<<<<"),
+    );
+
   return {
     gitState: createInitialState(),
     historyStack: [],
@@ -83,6 +91,7 @@ export const useGitStore = create<GitStore>((set, get) => {
     isObjectiveSolved: false,
     quizAnsweredIdx: null,
     stepCommandLog: [],
+    conflictDialogOpen: false,
 
     theme: "light",
 
@@ -159,6 +168,9 @@ export const useGitStore = create<GitStore>((set, get) => {
         stepCommandLog: [...get().stepCommandLog, ...succeededSubCommands],
         isObjectiveSolved: solved,
         terminalInput: "",
+        ...(hasConflictMarkers(currentGitState) ?
+          { conflictDialogOpen: true }
+        : {}),
       });
     },
 
@@ -443,22 +455,34 @@ export const useGitStore = create<GitStore>((set, get) => {
         get();
       const originalState = cloneState(gitState);
       const file = gitState.workingDirectory[path];
-      if (!file) return;
+      if (!file || !file.content.includes("<<<<<<<")) return;
 
-      const regex = /<<<<<<< HEAD\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> .*/;
-      const match = file.content.match(regex);
-      if (!match) return;
-
-      const ours = match[1] || "";
-      const theirs = match[2] || "";
+      const match = file.content.match(
+        /<<<<<<< HEAD\r?\n([\s\S]*?)\r?\n=======\r?\n([\s\S]*?)\r?\n>>>>>>> [^\r\n]*/,
+      );
 
       let resolvedContent = "";
-      if (choice === "ours") {
-        resolvedContent = ours;
+      if (match) {
+        const ours = match[1] ?? "";
+        const theirs = match[2] ?? "";
+        if (choice === "ours") resolvedContent = ours;
+        else if (choice === "theirs") resolvedContent = theirs;
+        else
+          resolvedContent =
+            ours && theirs ? `${ours}\n${theirs}` : ours || theirs;
+      } else if (choice === "ours") {
+        resolvedContent = file.content
+          .replace(/^<<<<<<< HEAD\r?\n/, "")
+          .replace(/\r?\n=======\r?\n[\s\S]*$/, "");
       } else if (choice === "theirs") {
-        resolvedContent = theirs;
+        resolvedContent = file.content
+          .replace(/^<<<<<<< HEAD\r?\n[\s\S]*?\r?\n=======\r?\n/, "")
+          .replace(/\r?\n>>>>>>> [^\r\n]*/, "");
       } else {
-        resolvedContent = ours + "\n" + theirs;
+        resolvedContent = file.content
+          .replace(/^<<<<<<< HEAD\r?\n/, "")
+          .replace(/\r?\n=======\r?\n/, "\n")
+          .replace(/\r?\n>>>>>>> [^\r\n]*/, "");
       }
 
       const nextWD = { ...gitState.workingDirectory };
@@ -480,12 +504,16 @@ export const useGitStore = create<GitStore>((set, get) => {
         historyStack: [...historyStack, originalState],
         redoStack: [],
         isObjectiveSolved: solved,
+        conflictDialogOpen: hasConflictMarkers(nextState),
         terminalLogs: [
           ...get().terminalLogs,
           `Resolved conflict in ${path} using ${choice}`,
         ],
       });
     },
+
+    openConflictDialog: () => set({ conflictDialogOpen: true }),
+    closeConflictDialog: () => set({ conflictDialogOpen: false }),
 
     toggleTheme: () => {
       const nextTheme = get().theme === "dark" ? "light" : "dark";

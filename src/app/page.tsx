@@ -73,7 +73,7 @@ export default function App() {
               <GitTerminal />
             </div>
 
-            <div className="h-full w-full shrink-0 lg:w-[320px]">
+            <div className="h-full min-h-0 w-full shrink-0 overflow-hidden lg:w-[320px]">
               <ConflictResolver />
             </div>
           </div>

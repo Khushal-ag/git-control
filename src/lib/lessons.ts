@@ -53,7 +53,7 @@ export const lessons: Lesson[] = [
         objective: {
           description: "Create or modify files in the working directory.",
           validate: (state: GitState) =>
-            Object.keys(state.workingDirectory).length > 0,
+            state.workingDirectory["index.js"] !== undefined,
         },
         commandPreset: "echo \"console.log('Hello, Git!');\" > index.js",
       },
@@ -72,7 +72,8 @@ export const lessons: Lesson[] = [
         explanation: `Excellent! The file is now in the **Staging Area** (Lane 2, colored blue). \n\nNow, let's lock in these changes by creating a **Commit**. A commit is a permanent snapshot of your project's files at this point in time.\n\n**Step to perform:**\n1. **Create the commit snapshot:** Permanently save your staged changes with a descriptive label:\n\`git commit -m "Initial commit"\`\n\nRun this command and watch the staged files fly into a new commit node in the **Commit Graph**!`,
         objective: {
           description: "Make a commit with a message.",
-          validate: (state: GitState) => Object.keys(state.commits).length > 0,
+          validate: (state: GitState) =>
+            state.initialized && Object.keys(state.commits).length > 0,
         },
         commandPreset: 'git commit -m "Initial commit"',
       },
@@ -201,7 +202,16 @@ export const lessons: Lesson[] = [
         explanation: `Now that \`feature/login\` has progressed ahead of \`main\`, we need to switch back to \`main\` before we can merge those changes into it.\n\n**Step to perform:**\n1. **Checkout the main branch:** Switch the active workspace back to main:\n\`git checkout main\``,
         objective: {
           description: "Checkout the 'main' branch.",
-          validate: (state: GitState) => state.currentBranch === "main",
+          validate: (state: GitState) => {
+            const feat = state.branches["feature/login"]?.commitId || "";
+            const main = state.branches["main"]?.commitId || "";
+            return (
+              state.currentBranch === "main" &&
+              !!feat &&
+              !!main &&
+              feat !== main
+            );
+          },
         },
         commandPreset: "git checkout main",
       },
@@ -217,7 +227,10 @@ export const lessons: Lesson[] = [
               main &&
               feat &&
               main === feat &&
-              state.currentBranch === "main"
+              state.currentBranch === "main" &&
+              state.reflog.some((e) =>
+                e.action.includes("merge feature/login: Fast-forward"),
+              )
             );
           },
         },
@@ -249,7 +262,7 @@ export const lessons: Lesson[] = [
       },
       {
         title: "Resolving Conflicts",
-        explanation: `Git has paused the merge and outputted: \n\`Automatic merge failed; fix conflicts and then commit the result.\`\n\nLook at \`index.js\` in the files panel. Git added conflict markers.\n\nLet's resolve the conflict step-by-step:\n\n1. **Resolve the content:** Write the final desired content to the file (you can also click the resolve buttons that appeared in the files explorer UI):\n\`echo "Resolved Content" > index.js\`\n\n2. **Stage the resolution:** Tell Git the conflict in this file is resolved:\n\`git add index.js\`\n\n3. **Complete the merge commit:** Create the final merge commit snapshot:\n\`git commit -m "Resolve merge conflict"\``,
+        explanation: `Git has paused the merge and outputted: \n\`Automatic merge failed; fix conflicts and then commit the result.\`\n\nLook at \`index.js\` in the files panel. Git added conflict markers, and a resolver dialog opens so you can compare both versions.\n\nLet's resolve the conflict step-by-step:\n\n1. **Resolve the content:** In the dialog, pick Accept Ours, Accept Theirs, or Keep Both (or write the final content yourself):\n\`echo "Resolved Content" > index.js\`\n\n2. **Stage the resolution:** Tell Git the conflict in this file is resolved:\n\`git add index.js\`\n\n3. **Complete the merge commit:** Create the final merge commit snapshot:\n\`git commit -m "Resolve merge conflict"\``,
         objective: {
           description: "Resolve the conflict, stage the file, and commit.",
           validate: (state: GitState) => {
@@ -292,19 +305,13 @@ export const lessons: Lesson[] = [
           validate: (state: GitState) => {
             const featCId = state.branches["feature/rebase"]?.commitId;
             const mainCId = state.branches["main"]?.commitId;
-            if (!featCId || !mainCId) return false;
+            if (!featCId || !mainCId || featCId === mainCId) return false;
 
-            let curr = featCId;
-            let foundMain = false;
-            while (curr) {
-              if (curr === mainCId) {
-                foundMain = true;
-                break;
-              }
-              const commit = state.commits[curr];
-              curr = commit?.parentIds[0] || "";
-            }
-            return foundMain && featCId !== mainCId;
+            const featCommit = state.commits[featCId];
+            return (
+              featCommit?.parentIds[0] === mainCId &&
+              !!featCommit.message.includes("(rebased)")
+            );
           },
         },
         commandPreset: [
@@ -375,11 +382,13 @@ export const lessons: Lesson[] = [
         explanation: `If you haven't shared your branch with others, you can modify history locally using \`git reset\`.\n\n- \`--soft\`: Undoes commits, keeps files in staging.\n- \`--mixed\` (default): Undoes commits & stages, keeps files in working directory.\n- \`--hard\`: Destroys commits, staged changes, and working directory edits to match the target commit.\n\nLet's run a hard reset to remove the last commit.\n\n**Step to perform:**\n1. **Perform a hard reset:** Move your active branch pointer back one commit, discarding all uncommitted workspace changes:\n\`git reset --hard HEAD~1\``,
         objective: {
           description: "Perform a hard reset to HEAD~1.",
-          validate: (state: GitState) => {
-            return state.reflog.some(
-              (e) => e.action.includes("reset: ") && e.action.includes("hard"),
-            );
-          },
+          validate: (state: GitState) =>
+            state.reflog.some(
+              (e) =>
+                e.action.includes("reset: ") &&
+                e.action.includes("hard") &&
+                e.action.includes("HEAD~1"),
+            ),
         },
         commandPreset: "git reset --hard HEAD~1",
       },
@@ -423,7 +432,11 @@ export const lessons: Lesson[] = [
         explanation: `Let's modify a file to make the workspace "dirty", then stash the changes step-by-step:\n\n1. **Make a local change:** Edit the file to simulate work-in-progress:\n\`echo "// work in progress" >> index.js\`\n\n2. **Stash the changes:** Shelve your changes to temporarily clean the workspace:\n\`git stash\`\n\nObserve how the files disappear from the Working Directory and Staging lanes, and move into the **Stash Stack** (Lane 3 under Stashes)!`,
         objective: {
           description: "Modify a file and run git stash.",
-          validate: (state: GitState) => state.stash.length > 0,
+          validate: (state: GitState) =>
+            state.stash.length > 0 &&
+            Object.values(state.workingDirectory).every(
+              (f) => f.state === "committed",
+            ),
         },
         commandPreset: ['echo "// work in progress" >> index.js', "git stash"],
       },
@@ -432,7 +445,11 @@ export const lessons: Lesson[] = [
         explanation: `Your workspace is now completely clean, and you are free to switch branches, fix bugs, or commit.\n\nOnce you are ready to resume, you can pop the shelved changes back into your workspace.\n\n**Step to perform:**\n1. **Pop changes from the stash stack:** Apply the stashed changes back and remove them from the shelf:\n\`git stash pop\`\n\nWatch the files fly from the Stash storage back into your Working Directory!`,
         objective: {
           description: "Pop changes back from the stash list.",
-          validate: (state: GitState) => state.stash.length === 0,
+          validate: (state: GitState) =>
+            state.stash.length === 0 &&
+            !!state.workingDirectory["index.js"]?.content.includes(
+              "work in progress",
+            ),
         },
         commandPreset: "git stash pop",
       },

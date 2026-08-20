@@ -23,7 +23,7 @@ export function FileExplorer() {
     editFile,
     deleteFile,
     runCommand,
-    resolveConflictVisually,
+    openConflictDialog,
   } = useGitStore();
 
   const [isCreating, setIsCreating] = useState(false);
@@ -143,9 +143,13 @@ export function FileExplorer() {
                           {file.path}
                         </span>
                         <span
-                          className={`mt-1 inline-block rounded-md border px-1.5 py-0.5 text-[9px] font-semibold tracking-wider uppercase ${getStateColor(file.state)}`}
+                          className={`mt-1 inline-block rounded-md border px-1.5 py-0.5 text-[9px] font-semibold tracking-wider uppercase ${
+                            conf ?
+                              "border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-500/25 dark:bg-rose-950/20 dark:text-rose-400"
+                            : getStateColor(file.state)
+                          }`}
                         >
-                          {file.state}
+                          {conf ? "conflict" : file.state}
                         </span>
                       </div>
 
@@ -179,36 +183,23 @@ export function FileExplorer() {
                     </div>
 
                     {conf && (
-                      <div className="mt-3 space-y-1.5 border-t border-rose-200 pt-2.5 dark:border-rose-900/35">
-                        <span className="flex items-center gap-1 text-[10px] font-semibold text-rose-600 dark:text-rose-400">
-                          <AlertCircle className="size-3" /> Merge Conflict
-                        </span>
-                        <div className="grid grid-cols-3 gap-1">
-                          <button
-                            onClick={() =>
-                              resolveConflictVisually(file.path, "ours")
-                            }
-                            className="rounded bg-rose-100 py-1 text-[9px] font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:hover:bg-rose-500/35"
-                          >
-                            Ours
-                          </button>
-                          <button
-                            onClick={() =>
-                              resolveConflictVisually(file.path, "theirs")
-                            }
-                            className="rounded bg-rose-100 py-1 text-[9px] font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:hover:bg-rose-500/35"
-                          >
-                            Theirs
-                          </button>
-                          <button
-                            onClick={() =>
-                              resolveConflictVisually(file.path, "both")
-                            }
-                            className="rounded bg-rose-100 py-1 text-[9px] font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:hover:bg-rose-500/35"
-                          >
-                            Both
-                          </button>
+                      <div className="mt-3 space-y-2 border-t border-rose-200 pt-2.5 dark:border-rose-900/35">
+                        <div className="space-y-1">
+                          <span className="flex items-center gap-1 text-[10px] font-semibold text-rose-600 dark:text-rose-400">
+                            <AlertCircle className="size-3" /> Merge conflict
+                          </span>
+                          <p className="text-[10px] leading-snug text-zinc-500 dark:text-zinc-400">
+                            Both branches changed this file. Compare versions
+                            and pick what to keep.
+                          </p>
                         </div>
+                        <button
+                          type="button"
+                          onClick={openConflictDialog}
+                          className="w-full rounded-md bg-rose-500 px-2 py-1.5 text-[10px] font-bold text-white transition hover:bg-rose-600"
+                        >
+                          Compare versions
+                        </button>
                       </div>
                     )}
                   </motion.div>
