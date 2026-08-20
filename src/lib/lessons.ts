@@ -72,8 +72,15 @@ export const lessons: Lesson[] = [
         explanation: `Excellent! The file is now in the **Staging Area** (Lane 2, colored blue). \n\nNow, let's lock in these changes by creating a **Commit**. A commit is a permanent snapshot of your project's files at this point in time.\n\n**Step to perform:**\n1. **Create the commit snapshot:** Permanently save your staged changes with a descriptive label:\n\`git commit -m "Initial commit"\`\n\nRun this command and watch the staged files fly into a new commit node in the **Commit Graph**!`,
         objective: {
           description: "Make a commit with a message.",
-          validate: (state: GitState) =>
-            state.initialized && Object.keys(state.commits).length > 0,
+          validate: (state: GitState) => {
+            const tipId = state.branches["main"]?.commitId;
+            const tip = tipId ? state.commits[tipId] : undefined;
+            return !!(
+              state.initialized &&
+              tip &&
+              tip.files["index.js"] !== undefined
+            );
+          },
         },
         commandPreset: 'git commit -m "Initial commit"',
       },
@@ -160,6 +167,7 @@ export const lessons: Lesson[] = [
             state.HEAD !== "main" &&
             state.HEAD !== "",
         },
+        commandPreset: "git checkout <first-commit-hash>",
       },
     ],
   },
@@ -299,29 +307,33 @@ export const lessons: Lesson[] = [
       },
       {
         title: "Rebasing Commits",
-        explanation: `Let's say we have a feature branch that is behind \`main\`. We want to rebase it onto \`main\` so it includes main's changes and places feature commits cleanly on top.\n\nLet's set up the branches and perform the rebase step-by-step:\n\n1. **Create and switch to a feature branch:**\n\`git checkout -b feature/rebase\`\n\n2. **Commit a change on the feature branch:**\n\`echo "feat" > index.js\`\n\`git add index.js\`\n\`git commit -m "feature commit"\`\n\n3. **Switch to main:** Go back to main to simulate updates happening there:\n\`git checkout main\`\n\n4. **Commit a new change on main:**\n\`echo "main change" > index.js\`\n\`git add index.js\`\n\`git commit -m "main commit"\`\n\n5. **Switch back to the feature branch:** Ready to update it:\n\`git checkout feature/rebase\`\n\n6. **Rebase onto main:** Move your feature commits to sit on top of main's latest commit:\n\`git rebase main\`\n\nNotice how the feature commit is copied and moved to sit on top of the main commit!`,
+        explanation: `Let's say we have a feature branch that is behind \`main\`. We want to rebase it onto \`main\` so it includes main's changes and places feature commits cleanly on top.\n\nTo keep the demo conflict-free, the branches edit *different* files. (If both rewrote the same lines, real Git would pause for a rebase conflict.)\n\n1. **Create and switch to a feature branch:**\n\`git checkout -b feature/rebase\`\n\n2. **Add a feature-only file and commit:**\n\`echo "login feature" > feature.js\`\n\`git add feature.js\`\n\`git commit -m "feature commit"\`\n\n3. **Switch to main:** Go back to main to simulate updates happening there:\n\`git checkout main\`\n\n4. **Update docs on main:**\n\`echo "updated docs" > README.md\`\n\`git add README.md\`\n\`git commit -m "main commit"\`\n\n5. **Switch back to the feature branch:** Ready to update it:\n\`git checkout feature/rebase\`\n\n6. **Rebase onto main:** Move your feature commits to sit on top of main's latest commit:\n\`git rebase main\`\n\nWatch the graph: a *new* feature commit appears on top of main, and the tip should contain both \`README.md\` (from main) and \`feature.js\` (from your work). The original pre-rebase commit is left floating with no branch tip.`,
         objective: {
-          description: "Perform git rebase main on feature/rebase branch.",
+          description:
+            "Rebase feature/rebase onto main so the tip sits on main and keeps both sides' files.",
           validate: (state: GitState) => {
             const featCId = state.branches["feature/rebase"]?.commitId;
             const mainCId = state.branches["main"]?.commitId;
             if (!featCId || !mainCId || featCId === mainCId) return false;
 
             const featCommit = state.commits[featCId];
+            const mainCommit = state.commits[mainCId];
             return (
               featCommit?.parentIds[0] === mainCId &&
-              !!featCommit.message.includes("(rebased)")
+              !!featCommit.message.includes("(rebased)") &&
+              featCommit.files["feature.js"] !== undefined &&
+              featCommit.files["README.md"] === mainCommit?.files["README.md"]
             );
           },
         },
         commandPreset: [
           "git checkout -b feature/rebase",
-          'echo "feat" > index.js',
-          "git add index.js",
+          'echo "login feature" > feature.js',
+          "git add feature.js",
           'git commit -m "feature commit"',
           "git checkout main",
-          'echo "main change" > index.js',
-          "git add index.js",
+          'echo "updated docs" > README.md',
+          "git add README.md",
           'git commit -m "main commit"',
           "git checkout feature/rebase",
           "git rebase main",
@@ -329,20 +341,23 @@ export const lessons: Lesson[] = [
       },
       {
         title: "Cherry-Picking a Commit",
-        explanation: `Sometimes you don't want to merge or rebase a whole branch. You just want to copy *one single commit* from another branch onto your current branch.\n\nThis is called **Cherry-Picking**.\n\nLet's cherry-pick a commit. Notice the commit graph still has the *original* (pre-rebase) "feature commit" floating around, no longer attached to any branch since \`feature/rebase\` now points to its replayed copy. Find that orphaned commit's hash in the graph and cherry-pick it onto your current branch.\n\n**Step to perform:**\n1. **Cherry-pick a specific commit:** Copy that individual commit's changes and replay them on top of your current HEAD:\n\`git cherry-pick <commit-hash>\``,
+        explanation: `Sometimes you don't want to merge or rebase a whole branch. You just want to copy *one single commit* from another branch onto your current branch.\n\nThis is called **Cherry-Picking**.\n\nAfter the rebase, \`feature/rebase\` already has a replayed copy of the feature work. The *original* pre-rebase "feature commit" still floats in the graph. \`main\` has the docs update but *not* \`feature.js\` yet, so cherry-picking that orphan onto \`main\` is a clear, visible copy.\n\n**Steps to perform:**\n1. **Switch to main:**\n\`git checkout main\`\n\n2. **Cherry-pick the orphaned feature commit:** Find the floating pre-rebase hash in the graph:\n\`git cherry-pick <commit-hash>\`\n\nYou should see a new commit on \`main\` that adds \`feature.js\` while keeping the updated \`README.md\`.`,
         objective: {
-          description: "Cherry-pick a commit onto your active branch.",
+          description:
+            "Checkout main, then cherry-pick the orphaned feature commit onto it.",
           validate: (state: GitState) => {
-            const headCId =
-              (state.currentBranch ?
-                state.branches[state.currentBranch]?.commitId
-              : state.HEAD) || "";
-            const commit = state.commits[headCId];
+            const mainId = state.branches["main"]?.commitId || "";
+            const commit = mainId ? state.commits[mainId] : undefined;
             return !!(
-              commit !== undefined && commit.message.includes("(cherry-picked)")
+              state.currentBranch === "main" &&
+              commit?.message.includes("(cherry-picked)") &&
+              commit.message.includes("feature commit") &&
+              commit.files["feature.js"] !== undefined &&
+              commit.files["README.md"] === "updated docs"
             );
           },
         },
+        commandPreset: ["git checkout main", "git cherry-pick <commit-hash>"],
       },
     ],
   },
@@ -375,29 +390,47 @@ export const lessons: Lesson[] = [
           'echo "// buggy code" >> index.js',
           "git add index.js",
           'git commit -m "Introduce a bug"',
+          "git revert <bug-commit-hash>",
         ],
       },
       {
         title: "Resetting History",
-        explanation: `If you haven't shared your branch with others, you can modify history locally using \`git reset\`.\n\n- \`--soft\`: Undoes commits, keeps files in staging.\n- \`--mixed\` (default): Undoes commits & stages, keeps files in working directory.\n- \`--hard\`: Destroys commits, staged changes, and working directory edits to match the target commit.\n\nLet's run a hard reset to remove the last commit.\n\n**Step to perform:**\n1. **Perform a hard reset:** Move your active branch pointer back one commit, discarding all uncommitted workspace changes:\n\`git reset --hard HEAD~1\``,
+        explanation: `If you haven't shared your branch with others, you can modify history locally using \`git reset\`.\n\n- \`--soft\`: Undoes commits, keeps files in staging.\n- \`--mixed\` (default): Undoes commits & stages, keeps files in working directory.\n- \`--hard\`: Destroys commits, staged changes, and working directory edits to match the target commit.\n\nYour branch tip is still the safe revert. Let's make a *new* local mistake, then hard-reset it away, without undoing the revert.\n\n1. **Create a throwaway WIP commit:**\n\`echo "// oops" >> index.js\`\n\`git add index.js\`\n\`git commit -m "WIP mistake"\`\n\n2. **Hard-reset one commit back:** Drop that WIP commit from the branch tip:\n\`git reset --hard HEAD~1\`\n\n\`main\` should point at the revert again. The WIP commit becomes unreachable from the branch (but still findable via reflog next).`,
         objective: {
-          description: "Perform a hard reset to HEAD~1.",
-          validate: (state: GitState) =>
-            state.reflog.some(
+          description:
+            "Commit a WIP mistake, then hard-reset HEAD~1 to drop it (keeping the revert).",
+          validate: (state: GitState) => {
+            const tipId =
+              (state.currentBranch ?
+                state.branches[state.currentBranch]?.commitId
+              : state.HEAD) || "";
+            const tip = tipId ? state.commits[tipId] : undefined;
+            const didReset = state.reflog.some(
               (e) =>
                 e.action.includes("reset: ") &&
                 e.action.includes("hard") &&
                 e.action.includes("HEAD~1"),
-            ),
+            );
+            return !!(
+              didReset &&
+              tip?.message.startsWith('Revert "') &&
+              !tip.message.includes("WIP")
+            );
+          },
         },
-        commandPreset: "git reset --hard HEAD~1",
+        commandPreset: [
+          'echo "// oops" >> index.js',
+          "git add index.js",
+          'git commit -m "WIP mistake"',
+          "git reset --hard HEAD~1",
+        ],
       },
       {
         title: "The Magic of Reflog",
-        explanation: `Oh no! You performed a hard reset and "lost" your commit! \n\nActually, Git doesn't delete commits immediately. HEAD changes are recorded in the **Reflog** (Reference Log).\n\nLet's look at the reflog to find the commit you just deleted, and check it out to recover it step-by-step:\n\n1. **View reference log history:** See the list of all recent updates to HEAD:\n\`git reflog\`\n\n2. **Checkout the deleted commit:** The reset is at \`HEAD@{0}\`. The commit *before* that move lives at \`HEAD@{1}\`. Recover it with:\n\`git checkout HEAD@{1}\`\n\n*(You can also click the commit hash from \`HEAD@{1}\` in the terminal output or the reflog panel on the right.)*`,
+        explanation: `Oh no! The hard reset dropped your "WIP mistake" commit from the branch tip.\n\nActually, Git doesn't delete commits immediately. HEAD changes are recorded in the **Reflog** (Reference Log).\n\nLet's look at the reflog to find that lost WIP commit and check it out:\n\n1. **View reference log history:**\n\`git reflog\`\n\n2. **Checkout the deleted commit:** The reset is at \`HEAD@{0}\`. The WIP commit lives at \`HEAD@{1}\`. Recover it with:\n\`git checkout HEAD@{1}\`\n\n*(You can also click the commit hash from \`HEAD@{1}\` in the terminal output or the reflog panel on the right.)*`,
         objective: {
           description:
-            "Recover the lost commit by checking its hash out from the reflog.",
+            "Recover the lost WIP commit by checking it out from the reflog.",
           validate: (state: GitState) => {
             const reflogEntries = state.reflog;
             if (reflogEntries.length < 2) return false;
@@ -409,7 +442,12 @@ export const lessons: Lesson[] = [
             const resetAction = reflogEntries.find((e) =>
               e.action.includes("reset: "),
             );
-            return !!(resetAction && resetAction.previousHead === currentHead);
+            const recovered = currentHead ? state.commits[currentHead] : null;
+            return !!(
+              resetAction &&
+              resetAction.previousHead === currentHead &&
+              recovered?.message === "WIP mistake"
+            );
           },
         },
         commandPreset: ["git reflog", "git checkout HEAD@{1}"],

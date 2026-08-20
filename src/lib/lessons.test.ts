@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import type { GitState } from "@/types/git";
 
+import { getCommandDoneFlags } from "@/lib/command-checklist";
+import {
+  findOrphanFeatureCommit,
+  getRootCommitId,
+  resolveCommandTemplate,
+} from "@/lib/command-templates";
 import { createInitialState, executeGitCommand } from "@/lib/git-engine";
+import { parseInlineStyles, stripHtml } from "@/lib/lesson-markdown";
 import { lessons } from "@/lib/lessons";
 
 function run(state: GitState, command: string, allowError = false) {
@@ -39,7 +46,7 @@ function seedLesson(lessonId: string): GitState {
     lessonId === "recovery" ||
     lessonId === "stash"
   ) {
-    const seedCommitId = "seed001";
+    const seedCommitId = "a1b2c3d";
     initialRepo.initialized = true;
     initialRepo.currentBranch = "main";
     initialRepo.HEAD = "main";
@@ -75,43 +82,13 @@ function seedLesson(lessonId: string): GitState {
 }
 
 function getInitialCommitId(state: GitState): string {
-  const mainId = state.branches.main?.commitId;
-  if (!mainId) throw new Error("main branch has no commit");
-  let curr = mainId;
-  while (true) {
-    const commit = state.commits[curr];
-    if (!commit || commit.parentIds.length === 0) return curr;
-    curr = commit.parentIds[0]!;
-  }
+  const id = getRootCommitId(state);
+  if (!id) throw new Error("main branch has no commit");
+  return id;
 }
 
 function findOrphanCommit(state: GitState): string | null {
-  const branchTips = new Set(
-    Object.values(state.branches)
-      .map((b) => b.commitId)
-      .filter(Boolean),
-  );
-  return (
-    Object.keys(state.commits).find(
-      (id) =>
-        !branchTips.has(id) &&
-        state.commits[id]?.message.includes("feature commit") &&
-        !state.commits[id]?.message.includes("(rebased)"),
-    ) ?? null
-  );
-}
-
-function resolvePostPresetCommands(
-  lessonId: string,
-  stepTitle: string,
-  state: GitState,
-): string[] {
-  if (lessonId === "recovery" && stepTitle === "Reverting a Commit") {
-    const headId = state.branches.main?.commitId ?? state.HEAD;
-    return [`git revert ${headId}`];
-  }
-
-  return [];
+  return findOrphanFeatureCommit(state);
 }
 
 function resolvePresetCommands(
@@ -132,7 +109,7 @@ function resolvePresetCommands(
     const orphan = findOrphanCommit(state);
     if (!orphan)
       throw new Error("no orphaned feature commit found for cherry-pick");
-    return [`git cherry-pick ${orphan}`];
+    return ["git checkout main", `git cherry-pick ${orphan}`];
   }
 
   return [];
@@ -203,19 +180,14 @@ function verifyLessonFlow(lessonId: string): StepResult[] {
         state = runAll(state, standalone);
       } else {
         if (presetCommands.length > 0) {
-          state = runAll(
-            state,
-            presetCommands,
-            step.title === "Triggering a Merge Conflict",
-          );
-        }
-        const postCommands = resolvePostPresetCommands(
-          lessonId,
-          step.title,
-          state,
-        );
-        if (postCommands.length > 0) {
-          state = runAll(state, postCommands);
+          for (const raw of presetCommands) {
+            const cmd = resolveCommandTemplate(raw, state);
+            state = run(
+              state,
+              cmd,
+              step.title === "Triggering a Merge Conflict",
+            );
+          }
         }
       }
 
@@ -402,9 +374,20 @@ describe("objectives stay pending until the key action finishes", () => {
     expect(objective("recovery", "Resetting History").validate(state)).toBe(
       false,
     );
+    state = runAll(state, [
+      'echo "// oops" >> index.js',
+      "git add index.js",
+      'git commit -m "WIP mistake"',
+    ]);
+    expect(objective("recovery", "Resetting History").validate(state)).toBe(
+      false,
+    );
     state = run(state, "git reset --hard HEAD~1");
     expect(objective("recovery", "Resetting History").validate(state)).toBe(
       true,
+    );
+    expect(state.commits[state.branches.main!.commitId!]!.message).toMatch(
+      /^Revert "/,
     );
 
     expect(objective("recovery", "The Magic of Reflog").validate(state)).toBe(
@@ -438,15 +421,7 @@ describe("objectives stay pending until the key action finishes", () => {
         if (!step.objective) continue;
 
         const commands =
-          lesson.id === "branching" && step.title === "Detached HEAD Mode" ?
-            [`git checkout ${getInitialCommitId(state)}`]
-          : lesson.id === "rebase" && step.title === "Cherry-Picking a Commit" ?
-            (() => {
-              const orphan = findOrphanCommit(state);
-              if (!orphan) throw new Error("missing orphan for cherry-pick");
-              return [`git cherry-pick ${orphan}`];
-            })()
-          : step.commandPreset ?
+          step.commandPreset ?
             Array.isArray(step.commandPreset) ?
               step.commandPreset
             : [step.commandPreset]
@@ -462,7 +437,7 @@ describe("objectives stay pending until the key action finishes", () => {
         for (let i = 0; i < commands.length - 1; i++) {
           state = run(
             state,
-            commands[i]!,
+            resolveCommandTemplate(commands[i]!, state),
             step.title === "Triggering a Merge Conflict",
           );
           expect(
@@ -473,14 +448,9 @@ describe("objectives stay pending until the key action finishes", () => {
 
         state = run(
           state,
-          commands[commands.length - 1]!,
+          resolveCommandTemplate(commands[commands.length - 1]!, state),
           step.title === "Triggering a Merge Conflict",
         );
-
-        if (lesson.id === "recovery" && step.title === "Reverting a Commit") {
-          expect(step.objective.validate(state)).toBe(false);
-          state = run(state, `git revert ${state.branches.main!.commitId}`);
-        }
 
         expect(
           step.objective.validate(state),
@@ -490,6 +460,125 @@ describe("objectives stay pending until the key action finishes", () => {
     }
   });
 });
+
+describe("lesson checklist and markdown audits", () => {
+  it("every objective step has a commandPreset so the checklist cannot finish early without the key action", () => {
+    const missing: string[] = [];
+    for (const lesson of lessons) {
+      for (const step of lesson.steps) {
+        if (!step.objective) continue;
+        if (!step.commandPreset) {
+          missing.push(`${lesson.id}/${step.title}`);
+        }
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it("finishing the full preset checklist coincides with a solved objective", () => {
+    for (const lesson of lessons) {
+      let state = seedLesson(lesson.id);
+
+      for (const step of lesson.steps) {
+        if (!step.objective || !step.commandPreset) continue;
+
+        const templates =
+          Array.isArray(step.commandPreset) ?
+            step.commandPreset
+          : [step.commandPreset];
+        const log: string[] = [];
+
+        for (const raw of templates) {
+          const cmd = resolveCommandTemplate(raw, state);
+          state = run(state, cmd, step.title === "Triggering a Merge Conflict");
+          log.push(cmd);
+        }
+
+        const doneFlags = getCommandDoneFlags(templates, log);
+        expect(
+          doneFlags.every(Boolean),
+          `${lesson.id}/${step.title}: checklist should be fully done after preset`,
+        ).toBe(true);
+        expect(
+          step.objective.validate(state),
+          `${lesson.id}/${step.title}: objective should be solved when checklist is complete`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("partial checklists stay incomplete when the objective is still pending", () => {
+    for (const lesson of lessons) {
+      let state = seedLesson(lesson.id);
+
+      for (const step of lesson.steps) {
+        if (!step.objective || !step.commandPreset) continue;
+
+        const templates =
+          Array.isArray(step.commandPreset) ?
+            step.commandPreset
+          : [step.commandPreset];
+        if (templates.length < 2) {
+          if (templates[0]) {
+            // Still advance state for later steps in this lesson.
+            state = run(
+              state,
+              resolveCommandTemplate(templates[0], state),
+              step.title === "Triggering a Merge Conflict",
+            );
+          }
+          continue;
+        }
+
+        const log: string[] = [];
+        for (let i = 0; i < templates.length - 1; i++) {
+          const cmd = resolveCommandTemplate(templates[i]!, state);
+          state = run(state, cmd, step.title === "Triggering a Merge Conflict");
+          log.push(cmd);
+        }
+
+        const doneFlags = getCommandDoneFlags(templates, log);
+        expect(
+          doneFlags.every(Boolean),
+          `${lesson.id}/${step.title}: checklist must not show N/N while objective is pending`,
+        ).toBe(false);
+        expect(step.objective.validate(state)).toBe(false);
+
+        const last = resolveCommandTemplate(
+          templates[templates.length - 1]!,
+          state,
+        );
+        state = run(state, last, step.title === "Triggering a Merge Conflict");
+        log.push(last);
+      }
+    }
+  });
+
+  it("lesson explanations do not leave raw *emphasis* asterisks after rendering", () => {
+    for (const lesson of lessons) {
+      for (const step of lesson.steps) {
+        const plain = stripHtml(parseInlineStyles(step.explanation));
+        expect(
+          plain,
+          `${lesson.id}/${step.title} still has raw *asterisks*`,
+        ).not.toMatch(/(?<!\*)\*(?!\*)([^*]+)\*(?!\*)/);
+      }
+    }
+  });
+});
+
+const REBASE_SETUP = [
+  "git checkout -b feature/rebase",
+  'echo "login feature" > feature.js',
+  "git add feature.js",
+  'git commit -m "feature commit"',
+  "git checkout main",
+  'echo "updated docs" > README.md',
+  "git add README.md",
+  'git commit -m "main commit"',
+  "git checkout feature/rebase",
+  "git rebase main",
+];
 
 describe("lesson flow edge cases", () => {
   it("branching detached HEAD enters null currentBranch", () => {
@@ -509,19 +598,71 @@ describe("lesson flow edge cases", () => {
 
   it("rebase leaves an orphaned pre-rebase commit for cherry-pick lesson", () => {
     let state = seedLesson("rebase");
-    state = runAll(state, [
-      "git checkout -b feature/rebase",
-      'echo "feat" > index.js',
-      "git add index.js",
-      'git commit -m "feature commit"',
-      "git checkout main",
-      'echo "main change" > index.js',
-      "git add index.js",
-      'git commit -m "main commit"',
-      "git checkout feature/rebase",
-      "git rebase main",
-    ]);
+    state = runAll(state, REBASE_SETUP);
     expect(findOrphanCommit(state)).toBeTruthy();
+  });
+
+  it("rebase keeps main files and adds feature files", () => {
+    let state = seedLesson("rebase");
+    state = runAll(state, REBASE_SETUP);
+    const tip = state.commits[state.branches["feature/rebase"]!.commitId!]!;
+    const main = state.commits[state.branches.main!.commitId!]!;
+    expect(tip.parentIds[0]).toBe(state.branches.main!.commitId);
+    expect(tip.files["feature.js"]).toBe("login feature");
+    expect(tip.files["README.md"]).toBe(main.files["README.md"]);
+    expect(tip.files["README.md"]).toBe("updated docs");
+  });
+
+  it("cherry-pick onto main adds feature.js and keeps main docs", () => {
+    let state = seedLesson("rebase");
+    state = runAll(state, REBASE_SETUP);
+
+    const orphan = findOrphanCommit(state)!;
+    const featureTip = state.branches["feature/rebase"]!.commitId!;
+    const mainBefore = state.branches.main!.commitId!;
+
+    expect(state.commits[orphan]!.files["feature.js"]).toBe("login feature");
+    expect(state.commits[featureTip]!.files["feature.js"]).toBe(
+      "login feature",
+    );
+    expect(state.commits[mainBefore]!.files["feature.js"]).toBeUndefined();
+    expect(state.commits[mainBefore]!.files["README.md"]).toBe("updated docs");
+
+    const onFeature = run(state, `git cherry-pick ${orphan}`);
+    const featureNewTip = onFeature.branches["feature/rebase"]!.commitId!;
+    expect(onFeature.commits[featureNewTip]!.files["feature.js"]).toBe(
+      "login feature",
+    );
+    expect(onFeature.commits[featureNewTip]!.files["README.md"]).toBe(
+      "updated docs",
+    );
+
+    state = run(state, "git checkout main");
+    state = run(state, `git cherry-pick ${orphan}`);
+    const mainAfter = state.branches.main!.commitId!;
+    expect(state.commits[mainAfter]!.message).toContain("(cherry-picked)");
+    expect(state.commits[mainAfter]!.files["feature.js"]).toBe("login feature");
+    expect(state.commits[mainAfter]!.files["README.md"]).toBe("updated docs");
+  });
+
+  it("cherry-pick objective stays unsolved until checkout main and pick", () => {
+    const step = lessons
+      .find((l) => l.id === "rebase")!
+      .steps.find((s) => s.title === "Cherry-Picking a Commit")!;
+
+    let state = seedLesson("rebase");
+    state = runAll(state, REBASE_SETUP);
+    const orphan = findOrphanCommit(state)!;
+
+    expect(step.objective!.validate(state)).toBe(false);
+    state = run(state, `git cherry-pick ${orphan}`);
+    expect(step.objective!.validate(state)).toBe(false);
+
+    state = seedLesson("rebase");
+    state = runAll(state, [...REBASE_SETUP, "git checkout main"]);
+    expect(step.objective!.validate(state)).toBe(false);
+    state = run(state, `git cherry-pick ${findOrphanCommit(state)!}`);
+    expect(step.objective!.validate(state)).toBe(true);
   });
 
   it("rebase objective stays unsolved until git rebase runs", () => {
@@ -532,16 +673,16 @@ describe("lesson flow edge cases", () => {
     let state = seedLesson("rebase");
     state = runAll(state, [
       "git checkout -b feature/rebase",
-      'echo "feat" > index.js',
-      "git add index.js",
+      'echo "login feature" > feature.js',
+      "git add feature.js",
       'git commit -m "feature commit"',
     ]);
     expect(step.objective!.validate(state)).toBe(false);
 
     state = runAll(state, [
       "git checkout main",
-      'echo "main change" > index.js',
-      "git add index.js",
+      'echo "updated docs" > README.md',
+      "git add README.md",
       'git commit -m "main commit"',
       "git checkout feature/rebase",
     ]);
@@ -551,7 +692,7 @@ describe("lesson flow edge cases", () => {
     expect(step.objective!.validate(state)).toBe(true);
   });
 
-  it("recovery reflog step can recover pre-reset commit", () => {
+  it("recovery reset keeps the revert and drops only the WIP commit", () => {
     let state = seedLesson("recovery");
     state = runAll(state, [
       'echo "// buggy code" >> index.js',
@@ -560,13 +701,45 @@ describe("lesson flow edge cases", () => {
     ]);
     const bugCommit = state.branches.main?.commitId;
     state = run(state, `git revert ${bugCommit}`);
+    const revertId = state.branches.main?.commitId;
+    state = runAll(state, [
+      'echo "// oops" >> index.js',
+      "git add index.js",
+      'git commit -m "WIP mistake"',
+    ]);
+    const wipId = state.branches.main?.commitId;
+    state = run(state, "git reset --hard HEAD~1");
+
+    expect(state.branches.main?.commitId).toBe(revertId);
+    expect(state.branches.main?.commitId).not.toBe(wipId);
+    expect(state.commits[state.branches.main!.commitId!]!.message).toMatch(
+      /^Revert "/,
+    );
+  });
+
+  it("recovery reflog step can recover the WIP commit", () => {
+    let state = seedLesson("recovery");
+    state = runAll(state, [
+      'echo "// buggy code" >> index.js',
+      "git add index.js",
+      'git commit -m "Introduce a bug"',
+    ]);
+    const bugCommit = state.branches.main?.commitId;
+    state = run(state, `git revert ${bugCommit}`);
+    state = runAll(state, [
+      'echo "// oops" >> index.js',
+      "git add index.js",
+      'git commit -m "WIP mistake"',
+    ]);
+    const wipId = state.branches.main?.commitId;
     state = run(state, "git reset --hard HEAD~1");
 
     const resetAction = state.reflog.find((e) => e.action.includes("reset: "));
-    expect(resetAction?.previousHead).toBeTruthy();
+    expect(resetAction?.previousHead).toBe(wipId);
 
     state = run(state, `git checkout ${resetAction!.previousHead!}`);
-    expect(state.HEAD).toBe(resetAction!.previousHead);
+    expect(state.HEAD).toBe(wipId);
+    expect(state.commits[state.HEAD]!.message).toBe("WIP mistake");
   });
 
   it("recovery reflog step passes with git checkout HEAD@{1}", () => {
@@ -578,6 +751,11 @@ describe("lesson flow edge cases", () => {
     ]);
     const bugCommit = state.branches.main?.commitId;
     state = run(state, `git revert ${bugCommit}`);
+    state = runAll(state, [
+      'echo "// oops" >> index.js',
+      "git add index.js",
+      'git commit -m "WIP mistake"',
+    ]);
     state = run(state, "git reset --hard HEAD~1");
     state = run(state, "git checkout HEAD@{1}");
 

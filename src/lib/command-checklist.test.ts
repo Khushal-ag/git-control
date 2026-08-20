@@ -62,4 +62,12 @@ describe("getCommandDoneFlags", () => {
     );
     expect(flags).toEqual([true]);
   });
+
+  it("matches placeholder hashes like git revert <bug-commit-hash>", () => {
+    const flags = getCommandDoneFlags(
+      ['git commit -m "Introduce a bug"', "git revert <bug-commit-hash>"],
+      ['git commit -m "Introduce a bug"', "git revert a1b2c3d"],
+    );
+    expect(flags).toEqual([true, true]);
+  });
 });

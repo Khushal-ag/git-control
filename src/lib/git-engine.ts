@@ -19,6 +19,36 @@ function resolveReflogTarget(state: GitState, ref: string): string | null {
   return state.reflog[idx]?.nextHead ?? "";
 }
 
+/** Apply only the paths a commit changed vs its first parent onto a base tree. */
+export function applyCommitChanges(
+  ontoFiles: Record<string, string>,
+  commit: GitCommit,
+  commits: Record<string, GitCommit>,
+): Record<string, string> {
+  const parentId = commit.parentIds[0];
+  const parentCommit = parentId ? commits[parentId] : undefined;
+  const parentFiles = parentCommit?.files ?? {};
+  const result = { ...ontoFiles };
+
+  const paths = new Set([
+    ...Object.keys(parentFiles),
+    ...Object.keys(commit.files),
+  ]);
+
+  for (const path of paths) {
+    const before = parentFiles[path];
+    const after = commit.files[path];
+    if (before === after) continue;
+    if (after === undefined) {
+      delete result[path];
+    } else {
+      result[path] = after;
+    }
+  }
+
+  return result;
+}
+
 export function createInitialState(): GitState {
   const initialFiles: Record<string, GitFile> = {
     "README.md": {
@@ -1270,10 +1300,11 @@ export function executeGitCommand(
       const lastParentCommit = nextCommits[lastParentId];
       const lastParentFiles = lastParentCommit ? lastParentCommit.files : {};
 
-      const replayedCommitFiles = {
-        ...lastParentFiles,
-        ...commitToReplay.files,
-      };
+      const replayedCommitFiles = applyCommitChanges(
+        lastParentFiles,
+        commitToReplay,
+        nextCommits,
+      );
 
       const replayedCommit: GitCommit = {
         id: newHash,
@@ -1371,7 +1402,11 @@ export function executeGitCommand(
     const currentCommit = state.commits[currentHeadCommitId];
     const currentFiles = currentCommit ? currentCommit.files : {};
 
-    const mergedFiles = { ...currentFiles, ...targetCommit.files };
+    const mergedFiles = applyCommitChanges(
+      currentFiles,
+      targetCommit,
+      state.commits,
+    );
 
     const pickCommit: GitCommit = {
       id: newHash,
@@ -1393,6 +1428,9 @@ export function executeGitCommand(
     Object.keys(mergedFiles).forEach((p) => {
       nextWD[p] = { path: p, state: "committed", content: mergedFiles[p]! };
     });
+    Object.keys(nextWD).forEach((p) => {
+      if (mergedFiles[p] === undefined) delete nextWD[p];
+    });
 
     const nextState: GitState = {
       ...state,
@@ -1410,11 +1448,17 @@ export function executeGitCommand(
       newHash,
     );
 
+    const changedCount =
+      Object.keys(mergedFiles).filter((p) => mergedFiles[p] !== currentFiles[p])
+        .length +
+      Object.keys(currentFiles).filter((p) => mergedFiles[p] === undefined)
+        .length;
+
     return {
       nextState,
       output: [
         `[${state.currentBranch || "detached"} ${newHash}] ${targetCommit.message} (cherry-picked)`,
-        ` 1 file changed`,
+        ` ${changedCount} file(s) changed`,
       ],
     };
   }
@@ -1515,7 +1559,7 @@ export function executeGitCommand(
     const nextState = {
       ...state,
       workingDirectory: nextWD,
-      stagingArea: {},
+      stagingArea: { ...currentFiles },
       stash: [newStashEntry, ...state.stash],
     };
 

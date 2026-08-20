@@ -13,11 +13,14 @@ import {
 } from "lucide-react";
 
 import { getCommandDoneFlags } from "@/lib/command-checklist";
+import { resolveCommandTemplate } from "@/lib/command-templates";
+import { parseInlineStyles } from "@/lib/lesson-markdown";
 import { lessons } from "@/lib/lessons";
 import { useGitStore } from "@/store/git-store";
 
 export function LessonPanel() {
   const {
+    gitState,
     currentLessonId,
     currentStepIndex,
     isObjectiveSolved,
@@ -165,22 +168,6 @@ export function LessonPanel() {
     });
   };
 
-  const parseInlineStyles = (text: string) => {
-    return text
-      .replace(/\n/g, "<br/>")
-      .replace(
-        /\*\*(.*?)\*\*/g,
-        '<strong class="text-zinc-900 dark:text-zinc-100 font-bold">$1</strong>',
-      )
-      .replace(/`(.*?)`/g, (_, codeText) => {
-        const escaped = codeText
-          .replace(/\\/g, "\\\\")
-          .replace(/'/g, "\\'")
-          .replace(/"/g, "&quot;");
-        return `<code onclick="if(window.setTerminalInput) { window.setTerminalInput('${escaped}'); }" class="cursor-pointer hover:bg-orange-50 hover:text-orange-700 dark:hover:bg-orange-950/20 transition-all duration-150 inline break-words text-orange-600 dark:text-orange-400 font-mono bg-zinc-100 dark:bg-zinc-950 px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-800">${codeText}</code>`;
-      });
-  };
-
   return (
     <div className="flex h-full flex-col justify-between overflow-x-hidden border-r border-zinc-200 bg-zinc-50 p-6 text-zinc-600 transition-colors duration-300 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
       <div className="space-y-5 overflow-x-hidden overflow-y-auto pr-1">
@@ -235,11 +222,17 @@ export function LessonPanel() {
             {!isObjectiveSolved &&
               step.commandPreset &&
               (() => {
-                const commands =
+                const templates =
                   Array.isArray(step.commandPreset) ?
                     step.commandPreset
                   : [step.commandPreset];
-                const doneFlags = getCommandDoneFlags(commands, stepCommandLog);
+                const commands = templates.map((cmd) =>
+                  resolveCommandTemplate(cmd, gitState),
+                );
+                const doneFlags = getCommandDoneFlags(
+                  templates,
+                  stepCommandLog,
+                );
                 const doneCount = doneFlags.filter(Boolean).length;
                 return (
                   <div className="mt-3 space-y-1.5">

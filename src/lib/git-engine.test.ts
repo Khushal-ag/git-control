@@ -164,6 +164,11 @@ describe("stash", () => {
     state = run(state, 'echo "// wip" >> index.js').nextState;
     state = run(state, "git stash").nextState;
     expect(state.workingDirectory["index.js"]?.content).toBe("hello");
+    expect(state.stagingArea["index.js"]).toBe("hello");
+    expect(Object.keys(state.stagingArea).length).toBeGreaterThan(0);
+
+    const status = run(state, "git status").output.join("\n");
+    expect(status).not.toContain("deleted:    index.js");
 
     state = run(state, "git stash pop").nextState;
     expect(state.stash).toHaveLength(0);
