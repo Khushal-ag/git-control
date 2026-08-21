@@ -462,6 +462,13 @@ describe("objectives stay pending until the key action finishes", () => {
     expect(objective("stash", "Popping Changes").validate(state)).toBe(true);
   });
 
+  it("stash: clean git stash does not unlock the stash objective", () => {
+    const state = seedLesson("stash");
+    const after = run(state, "git stash");
+    expect(after.stash).toHaveLength(0);
+    expect(objective("stash", "Stashing Changes").validate(after)).toBe(false);
+  });
+
   it("every multi-command preset stays unsolved until the final command", () => {
     for (const lesson of lessons) {
       let state = seedLesson(lesson.id);

@@ -509,11 +509,15 @@ export const lessons: Lesson[] = [
         explanation: `Let's modify a file to make the workspace "dirty", then stash the changes step-by-step:\n\n1. **Make a local change:** Edit the file to simulate work-in-progress:\n\`echo "// work in progress" >> index.js\`\n\n2. **Stash the changes:** Shelve your changes to temporarily clean the workspace:\n\`git stash\`\n\nObserve how the files disappear from the Working Directory and Staging lanes, and move into the **Stash Stack** (Lane 3 under Stashes)!`,
         objective: {
           description: "Modify a file and run git stash.",
-          validate: (state: GitState) =>
-            state.stash.length > 0 &&
-            Object.values(state.workingDirectory).every(
+          validate: (state: GitState) => {
+            const top = state.stash[0];
+            const shelvedDirty =
+              !!top && Object.keys(top.workingDirectory).length > 0;
+            const worktreeClean = Object.values(state.workingDirectory).every(
               (f) => f.state === "committed",
-            ),
+            );
+            return shelvedDirty && worktreeClean;
+          },
         },
         commandPreset: ['echo "// work in progress" >> index.js', "git stash"],
       },
@@ -526,6 +530,9 @@ export const lessons: Lesson[] = [
             state.stash.length === 0 &&
             !!state.workingDirectory["index.js"]?.content.includes(
               "work in progress",
+            ) &&
+            Object.values(state.workingDirectory).some(
+              (f) => f.state === "modified" || f.state === "staged",
             ),
         },
         commandPreset: "git stash pop",

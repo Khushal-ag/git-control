@@ -284,10 +284,19 @@ export const useGitStore = create<GitStore>((set, get) => {
           },
         };
         if (initialRepo.workingDirectory["README.md"]) {
-          initialRepo.workingDirectory["README.md"].state = "committed";
+          initialRepo.workingDirectory["README.md"] = {
+            path: "README.md",
+            state: "committed",
+            content:
+              initialRepo.commits[seedCommitId]?.files["README.md"] || "",
+          };
         }
         if (initialRepo.workingDirectory["index.js"]) {
-          initialRepo.workingDirectory["index.js"].state = "committed";
+          initialRepo.workingDirectory["index.js"] = {
+            path: "index.js",
+            state: "committed",
+            content: initialRepo.commits[seedCommitId]?.files["index.js"] || "",
+          };
         }
         initialRepo.stagingArea = {
           ...initialRepo.commits[seedCommitId]?.files,
@@ -488,11 +497,18 @@ export const useGitStore = create<GitStore>((set, get) => {
       const nextWD = { ...gitState.workingDirectory };
       nextWD[path] = {
         path,
-        state: "modified",
+        state: "staged",
         content: resolvedContent,
       };
 
-      const nextState = { ...gitState, workingDirectory: nextWD };
+      const nextState = {
+        ...gitState,
+        workingDirectory: nextWD,
+        stagingArea: {
+          ...gitState.stagingArea,
+          [path]: resolvedContent,
+        },
+      };
       const solved = checkObjective(
         nextState,
         currentLessonId,
@@ -507,7 +523,7 @@ export const useGitStore = create<GitStore>((set, get) => {
         conflictDialogOpen: hasConflictMarkers(nextState),
         terminalLogs: [
           ...get().terminalLogs,
-          `Resolved conflict in ${path} using ${choice}`,
+          `Resolved conflict in ${path} using ${choice} (staged)`,
         ],
       });
     },

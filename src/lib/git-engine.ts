@@ -49,6 +49,40 @@ export function applyCommitChanges(
   return result;
 }
 
+/** Swap the tracked tree while keeping untracked files that aren't overwritten. */
+export function applyTreePreservingUntracked(
+  workingDirectory: Record<string, GitFile>,
+  targetFiles: Record<string, string>,
+): { nextWD: Record<string, GitFile>; overwrites: string[] } {
+  const overwrites = Object.keys(targetFiles).filter((path) => {
+    const file = workingDirectory[path];
+    return file?.state === "untracked" && file.content !== targetFiles[path];
+  });
+
+  if (overwrites.length > 0) {
+    return { nextWD: workingDirectory, overwrites };
+  }
+
+  const nextWD: Record<string, GitFile> = {};
+
+  Object.keys(workingDirectory).forEach((path) => {
+    const file = workingDirectory[path];
+    if (file?.state === "untracked" && targetFiles[path] === undefined) {
+      nextWD[path] = { ...file };
+    }
+  });
+
+  Object.keys(targetFiles).forEach((path) => {
+    nextWD[path] = {
+      path,
+      state: "committed",
+      content: targetFiles[path]!,
+    };
+  });
+
+  return { nextWD, overwrites: [] };
+}
+
 export function createInitialState(): GitState {
   const initialFiles: Record<string, GitFile> = {
     "README.md": {
@@ -314,7 +348,8 @@ export function executeGitCommand(
         "",
         "Supported commands in this simulator:",
         "  init, status, add, commit, branch, checkout, switch, merge,",
-        "  rebase, cherry-pick, stash, reset, revert, reflog, log",
+        "  rebase, cherry-pick, stash, reset, revert, reflog, log,",
+        "  restore, diff, show",
       ],
     };
   }
@@ -334,7 +369,8 @@ export function executeGitCommand(
         "",
         "Supported commands in this simulator:",
         "  init, status, add, commit, branch, checkout, switch, merge,",
-        "  rebase, cherry-pick, stash, reset, revert, reflog, log",
+        "  rebase, cherry-pick, stash, reset, revert, reflog, log,",
+        "  restore, diff, show",
       ],
     };
   }
@@ -355,12 +391,31 @@ export function executeGitCommand(
     "revert",
     "reflog",
     "log",
+    "restore",
+    "diff",
+    "show",
   ];
 
   if (!SUPPORTED_SUBCOMMANDS.includes(gitSub)) {
+    const hints: Record<string, string> = {
+      pull: "git pull is not simulated (no remotes). Merge a local branch instead: git merge <branch>",
+      push: "git push is not simulated (no remotes). This playground is local-only.",
+      fetch: "git fetch is not simulated (no remotes).",
+      remote: "git remote is not simulated. This playground is local-only.",
+      clone: "git clone is not simulated. Use git init in this workspace.",
+      tag: "git tag is not simulated yet.",
+      clean:
+        "git clean is not simulated yet. Delete untracked files in the File States panel.",
+      rm: "git rm is not simulated yet. Delete the file, then stage the deletion with git add <file>.",
+      mv: "git mv is not simulated yet.",
+    };
+    const hint = hints[gitSub];
     return {
       nextState: state,
-      output: [`git: '${gitSub}' is not a git command. See 'git --help'.`],
+      output: [
+        `git: '${gitSub}' is not a git command in this simulator.`,
+        hint || "See 'git --help' for supported commands.",
+      ],
       error: true,
     };
   }
@@ -412,9 +467,25 @@ export function executeGitCommand(
       output.push(`HEAD detached at ${state.HEAD.substring(0, 7)}`);
     }
 
+    if (state.mergeHead) {
+      const hasMarkers = Object.values(state.workingDirectory).some((f) =>
+        f.content.includes("<<<<<<<"),
+      );
+      if (hasMarkers) {
+        output.push("You have unmerged paths.");
+        output.push('  (fix conflicts and run "git commit")');
+        output.push('  (use "git merge --abort" to abort the merge)');
+      } else {
+        output.push("All conflicts fixed but you are still merging.");
+        output.push('  (use "git commit" to conclude merge)');
+      }
+      output.push("");
+    }
+
     const untracked: string[] = [];
     const modified: string[] = [];
     const staged: string[] = [];
+    const unmerged: string[] = [];
 
     const headCommitId =
       (state.currentBranch ?
@@ -425,13 +496,17 @@ export function executeGitCommand(
 
     Object.keys(state.workingDirectory).forEach((path) => {
       const file = state.workingDirectory[path]!;
+      if (file.content.includes("<<<<<<<")) {
+        unmerged.push(path);
+        return;
+      }
       const inStaging = state.stagingArea[path] !== undefined;
       const inHead = headFiles[path] !== undefined;
 
       if (!inStaging && !inHead) {
         untracked.push(path);
       } else if (inStaging && state.stagingArea[path] !== file.content) {
-        modified.push(path);
+        modified.push(`modified:   ${path}`);
       }
     });
 
@@ -454,6 +529,13 @@ export function executeGitCommand(
         staged.push(`deleted:    ${path}`);
       }
     });
+
+    if (unmerged.length > 0) {
+      output.push("Unmerged paths:");
+      output.push('  (fix conflicts and run "git commit")');
+      unmerged.forEach((f) => output.push(`\tboth modified:   ${f}`));
+      output.push("");
+    }
 
     if (staged.length > 0) {
       output.push("Changes to be committed:");
@@ -483,7 +565,9 @@ export function executeGitCommand(
     if (
       staged.length === 0 &&
       modified.length === 0 &&
-      untracked.length === 0
+      untracked.length === 0 &&
+      unmerged.length === 0 &&
+      !state.mergeHead
     ) {
       output.push("nothing to commit, working tree clean");
     }
@@ -589,8 +673,23 @@ export function executeGitCommand(
       return {
         nextState: state,
         output: [
-          "error: switch `m' requires a value",
-          "fatal: empty commit message is not allowed",
+          "error: this simulator requires a commit message",
+          'usage: git commit -m "your message"',
+        ],
+        error: true,
+      };
+    }
+
+    const hasConflictMarkers = Object.values(state.workingDirectory).some((f) =>
+      f.content.includes("<<<<<<<"),
+    );
+    if (hasConflictMarkers) {
+      return {
+        nextState: state,
+        output: [
+          "error: Committing is not possible because you have unmerged files.",
+          "hint: Fix them up in the work tree, and then use 'git add <file>'",
+          "hint: as appropriate to mark resolution and make a commit.",
         ],
         error: true,
       };
@@ -901,21 +1000,27 @@ export function executeGitCommand(
     const nextWD = { ...state.workingDirectory };
 
     if (targetCommit) {
-      Object.keys(targetCommit.files).forEach((path) => {
-        nextWD[path] = {
-          path,
-          state: "committed",
-          content: targetCommit.files[path]!,
+      const applied = applyTreePreservingUntracked(
+        state.workingDirectory,
+        targetCommit.files,
+      );
+      if (applied.overwrites.length > 0) {
+        return {
+          nextState: state,
+          output: [
+            `error: The following untracked working tree files would be overwritten by checkout:`,
+            ...applied.overwrites.map((f) => `  ${f}`),
+            `Please move or remove them before you switch branches.`,
+            `Aborting...`,
+          ],
+          error: true,
         };
-      });
-      Object.keys(nextWD).forEach((path) => {
-        if (targetCommit.files[path] === undefined) {
-          delete nextWD[path];
-        }
-      });
+      }
+      Object.keys(nextWD).forEach((path) => delete nextWD[path]);
+      Object.assign(nextWD, applied.nextWD);
     } else {
       Object.keys(nextWD).forEach((path) => {
-        delete nextWD[path];
+        if (nextWD[path]?.state !== "untracked") delete nextWD[path];
       });
     }
 
@@ -951,6 +1056,35 @@ export function executeGitCommand(
 
   // git merge
   if (gitSub === "merge") {
+    if (parts[2] === "--abort") {
+      if (!state.mergeHead) {
+        return {
+          nextState: state,
+          output: ["fatal: There is no merge to abort (MERGE_HEAD missing)."],
+          error: true,
+        };
+      }
+      const headId =
+        (state.currentBranch ?
+          state.branches[state.currentBranch]?.commitId
+        : state.HEAD) || "";
+      const headCommit = headId ? state.commits[headId] : null;
+      const headFiles = headCommit ? headCommit.files : {};
+      const applied = applyTreePreservingUntracked(
+        state.workingDirectory,
+        headFiles,
+      );
+      return {
+        nextState: {
+          ...state,
+          workingDirectory: applied.nextWD,
+          stagingArea: { ...headFiles },
+          mergeHead: null,
+        },
+        output: ["Merge aborted."],
+      };
+    }
+
     const targetBranch = parts[2];
     if (!targetBranch) {
       return {
@@ -1121,19 +1255,36 @@ export function executeGitCommand(
     });
 
     if (conflicts.length > 0) {
+      const conflictSet = new Set(conflicts);
+      const nextStaging: Record<string, string> = {};
+      Object.keys(mergedFiles).forEach((path) => {
+        if (!conflictSet.has(path) && mergedFiles[path] !== undefined) {
+          nextStaging[path] = mergedFiles[path]!;
+        }
+      });
+
       const nextWD = { ...state.workingDirectory };
-      conflicts.forEach((path) => {
+      Object.keys(mergedFiles).forEach((path) => {
         nextWD[path] = {
           path,
-          state: "modified",
+          state: conflictSet.has(path) ? "modified" : "staged",
           content: mergedFiles[path] || "",
         };
+      });
+      Object.keys(nextWD).forEach((path) => {
+        if (
+          mergedFiles[path] === undefined &&
+          nextWD[path]?.state !== "untracked"
+        ) {
+          delete nextWD[path];
+        }
       });
 
       return {
         nextState: {
           ...state,
           workingDirectory: nextWD,
+          stagingArea: nextStaging,
           mergeHead: targetCommitId,
         },
         output: [
@@ -1466,6 +1617,35 @@ export function executeGitCommand(
   // git stash
   if (gitSub === "stash") {
     const stashCmd = parts[2];
+    const includeUntracked =
+      parts.includes("-u") || parts.includes("--include-untracked");
+
+    if (stashCmd === "list") {
+      if (state.stash.length === 0) {
+        return { nextState: state, output: [] };
+      }
+      return {
+        nextState: state,
+        output: state.stash.map(
+          (entry, index) => `stash@{${index}}: ${entry.message}`,
+        ),
+      };
+    }
+
+    if (stashCmd === "drop") {
+      if (state.stash.length === 0) {
+        return {
+          nextState: state,
+          output: ["No stash entries found."],
+          error: true,
+        };
+      }
+      const dropped = state.stash[0]!;
+      return {
+        nextState: { ...state, stash: state.stash.slice(1) },
+        output: [`Dropped refs/stash@{0} (${dropped.id})`],
+      };
+    }
 
     if (stashCmd === "pop" || stashCmd === "apply") {
       if (state.stash.length === 0 || !state.stash[0]) {
@@ -1477,8 +1657,6 @@ export function executeGitCommand(
       }
 
       const popped = state.stash[0];
-      // `apply` restores the changes but keeps the entry on the stash stack;
-      // only `pop` removes it — the one real difference between the two.
       const nextStash = stashCmd === "pop" ? state.stash.slice(1) : state.stash;
 
       const nextWD = { ...state.workingDirectory };
@@ -1506,6 +1684,22 @@ export function executeGitCommand(
       };
     }
 
+    if (
+      stashCmd &&
+      stashCmd !== "push" &&
+      stashCmd !== "save" &&
+      !stashCmd.startsWith("-")
+    ) {
+      return {
+        nextState: state,
+        output: [
+          `git stash: unknown subcommand '${stashCmd}'`,
+          "Supported: git stash / push / pop / apply / list / drop [-u]",
+        ],
+        error: true,
+      };
+    }
+
     const currentHeadCommitId =
       (state.currentBranch ?
         state.branches[state.currentBranch]?.commitId
@@ -1519,35 +1713,45 @@ export function executeGitCommand(
 
     Object.keys(state.workingDirectory).forEach((path) => {
       const file = state.workingDirectory[path];
-      if (
-        file &&
-        (file.state === "modified" ||
-          file.state === "untracked" ||
-          file.state === "staged")
-      ) {
-        stashWD[path] = { ...file };
-        const headContent = currentFiles[path];
-        if (headContent !== undefined) {
-          nextWD[path] = {
-            path,
-            state: "committed",
-            content: headContent,
-          };
-        } else {
-          delete nextWD[path];
-        }
+      if (!file) return;
+
+      const isUntracked = file.state === "untracked";
+      const isDirtyTracked =
+        file.state === "modified" || file.state === "staged";
+
+      if (isUntracked && !includeUntracked) return;
+      if (!isUntracked && !isDirtyTracked) return;
+
+      stashWD[path] = { ...file };
+      const headContent = currentFiles[path];
+      if (headContent !== undefined) {
+        nextWD[path] = {
+          path,
+          state: "committed",
+          content: headContent,
+        };
+      } else {
+        delete nextWD[path];
       }
     });
 
-    if (
-      Object.keys(stashWD).length === 0 &&
-      Object.keys(state.stagingArea).length === 0
-    ) {
+    const hasDirtyWorktree = Object.keys(stashWD).length > 0;
+    const hasStagedDiff =
+      Object.keys(state.stagingArea).some(
+        (path) => state.stagingArea[path] !== currentFiles[path],
+      ) ||
+      Object.keys(currentFiles).some(
+        (path) => state.stagingArea[path] === undefined,
+      );
+
+    if (!hasDirtyWorktree && !hasStagedDiff) {
       return { nextState: state, output: ["No local changes to save."] };
     }
 
     const message =
-      parts.slice(2).join(" ") || "WIP on " + (state.currentBranch || "HEAD");
+      stashCmd === "push" || stashCmd === "save" || !stashCmd ?
+        "WIP on " + (state.currentBranch || "HEAD")
+      : parts.slice(2).join(" ") || "WIP on " + (state.currentBranch || "HEAD");
     const newStashEntry: StashEntry = {
       id: `stash-${generateHash()}`,
       workingDirectory: stashWD,
@@ -1565,9 +1769,7 @@ export function executeGitCommand(
 
     return {
       nextState,
-      output: [
-        `Saved working directory and index state WIP on ${state.currentBranch || "HEAD"}: ${message}`,
-      ],
+      output: [`Saved working directory and index state ${message}`],
     };
   }
 
@@ -1959,6 +2161,144 @@ export function executeGitCommand(
     }
 
     return { nextState: state, output };
+  }
+
+  // git restore
+  if (gitSub === "restore") {
+    const staged = parts.includes("--staged");
+    const path = parts.slice(2).filter((p) => !p.startsWith("-"))[0];
+    if (!path) {
+      return {
+        nextState: state,
+        output: ["fatal: you must specify path(s) to restore"],
+        error: true,
+      };
+    }
+
+    const headId =
+      (state.currentBranch ?
+        state.branches[state.currentBranch]?.commitId
+      : state.HEAD) || "";
+    const headFiles = headId ? state.commits[headId]?.files || {} : {};
+
+    if (staged) {
+      const nextStaging = { ...state.stagingArea };
+      if (headFiles[path] !== undefined) {
+        nextStaging[path] = headFiles[path]!;
+      } else {
+        delete nextStaging[path];
+      }
+      return {
+        nextState: { ...state, stagingArea: nextStaging },
+        output: [`Unstaged changes in ${path}`],
+      };
+    }
+
+    const sourceContent =
+      state.stagingArea[path] !== undefined ?
+        state.stagingArea[path]
+      : headFiles[path];
+    if (sourceContent === undefined) {
+      return {
+        nextState: state,
+        output: [
+          `error: pathspec '${path}' did not match any file(s) known to git`,
+        ],
+        error: true,
+      };
+    }
+    const nextWD = {
+      ...state.workingDirectory,
+      [path]: {
+        path,
+        state:
+          state.stagingArea[path] !== headFiles[path] ? "staged" : "committed",
+        content: sourceContent,
+      } as GitFile,
+    };
+    return {
+      nextState: { ...state, workingDirectory: nextWD },
+      output: [`Restored ${path}`],
+    };
+  }
+
+  // git diff
+  if (gitSub === "diff") {
+    const staged = parts.includes("--staged") || parts.includes("--cached");
+    const headId =
+      (state.currentBranch ?
+        state.branches[state.currentBranch]?.commitId
+      : state.HEAD) || "";
+    const headFiles = headId ? state.commits[headId]?.files || {} : {};
+    const output: string[] = [];
+
+    if (staged) {
+      const paths = new Set([
+        ...Object.keys(headFiles),
+        ...Object.keys(state.stagingArea),
+      ]);
+      paths.forEach((path) => {
+        const a = headFiles[path];
+        const b = state.stagingArea[path];
+        if (a === b) return;
+        output.push(`diff --git a/${path} b/${path}`);
+        output.push(`--- a/${path}`);
+        output.push(`+++ b/${path}`);
+        output.push(`-${a ?? ""}`);
+        output.push(`+${b ?? ""}`);
+      });
+    } else {
+      Object.keys(state.workingDirectory).forEach((path) => {
+        const file = state.workingDirectory[path]!;
+        const base =
+          state.stagingArea[path] !== undefined ?
+            state.stagingArea[path]
+          : headFiles[path];
+        if (base === file.content) return;
+        if (file.state === "untracked") return;
+        output.push(`diff --git a/${path} b/${path}`);
+        output.push(`--- a/${path}`);
+        output.push(`+++ b/${path}`);
+        output.push(`-${base ?? ""}`);
+        output.push(`+${file.content}`);
+      });
+    }
+
+    if (output.length === 0) {
+      return { nextState: state, output: [] };
+    }
+    return { nextState: state, output };
+  }
+
+  // git show
+  if (gitSub === "show") {
+    const target = parts[2] || state.HEAD;
+    const commitId =
+      state.commits[target] ?
+        target
+      : state.branches[target]?.commitId ||
+        (state.currentBranch ?
+          state.branches[state.currentBranch]?.commitId
+        : state.HEAD) ||
+        "";
+    const commit = commitId ? state.commits[commitId] : undefined;
+    if (!commit) {
+      return {
+        nextState: state,
+        output: [`fatal: ambiguous argument '${target}': unknown revision`],
+        error: true,
+      };
+    }
+    return {
+      nextState: state,
+      output: [
+        `commit ${commit.id}`,
+        `Author: ${commit.author}`,
+        `Date:   ${new Date(commit.timestamp).toUTCString()}`,
+        "",
+        `    ${commit.message}`,
+      ],
+    };
   }
 
   return {

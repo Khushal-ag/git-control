@@ -166,6 +166,9 @@ describe("stash", () => {
     expect(state.workingDirectory["index.js"]?.content).toBe("hello");
     expect(state.stagingArea["index.js"]).toBe("hello");
     expect(Object.keys(state.stagingArea).length).toBeGreaterThan(0);
+    expect(
+      Object.keys(state.stash[0]!.workingDirectory).length,
+    ).toBeGreaterThan(0);
 
     const status = run(state, "git status").output.join("\n");
     expect(status).not.toContain("deleted:    index.js");
@@ -173,6 +176,24 @@ describe("stash", () => {
     state = run(state, "git stash pop").nextState;
     expect(state.stash).toHaveLength(0);
     expect(state.workingDirectory["index.js"]?.content).toContain("wip");
+  });
+
+  it("does not create an empty stash on a clean worktree", () => {
+    const state = runAll(createInitialState(), [
+      "git init",
+      "git add .",
+      'git commit -m "Initial commit"',
+    ]);
+    expect(Object.keys(state.stagingArea).length).toBeGreaterThan(0);
+    expect(
+      Object.values(state.workingDirectory).every(
+        (f) => f.state === "committed",
+      ),
+    ).toBe(true);
+
+    const { nextState, output } = run(state, "git stash");
+    expect(nextState.stash).toHaveLength(0);
+    expect(output.join("\n")).toContain("No local changes to save");
   });
 });
 
@@ -283,6 +304,85 @@ describe("revert", () => {
     expect(reverted.commits[headId!]?.message.startsWith('Revert "')).toBe(
       true,
     );
+  });
+});
+
+describe("sandbox quality", () => {
+  it("git stash list does not create a stash entry", () => {
+    const state = runAll(createInitialState(), [
+      "git init",
+      "git add .",
+      'git commit -m "init"',
+      'echo "wip" >> index.js',
+      "git stash",
+    ]);
+    expect(state.stash).toHaveLength(1);
+
+    const listed = run(state, "git stash list");
+    expect(listed.nextState.stash).toHaveLength(1);
+    expect(listed.output[0]).toMatch(/^stash@\{0\}:/);
+  });
+
+  it("preserves untracked files across checkout", () => {
+    const state = runAll(createInitialState(), [
+      "git init",
+      "git add .",
+      'git commit -m "init"',
+      "git checkout -b feature",
+      'echo "only here" > notes.txt',
+      "git checkout main",
+    ]);
+    expect(state.workingDirectory["notes.txt"]?.content).toBe("only here");
+    expect(state.workingDirectory["notes.txt"]?.state).toBe("untracked");
+  });
+
+  it("conflicted merge keeps auto-merged files from both sides", () => {
+    let state = runAll(createInitialState(), [
+      "git init",
+      "git add .",
+      'git commit -m "init"',
+      "git checkout -b side",
+      'echo "A" > index.js',
+      'echo "from-side" > side-only.txt',
+      "git add .",
+      'git commit -m "side"',
+      "git checkout main",
+      'echo "B" > index.js',
+      'echo "from-main" > main-only.txt',
+      "git add .",
+      'git commit -m "main"',
+    ]);
+    state = run(state, "git merge side").nextState;
+    expect(state.mergeHead).toBeTruthy();
+    expect(state.workingDirectory["index.js"]?.content).toContain("<<<<<<<");
+    expect(state.workingDirectory["side-only.txt"]?.content).toBe("from-side");
+    expect(state.workingDirectory["main-only.txt"]?.content).toBe("from-main");
+
+    state = run(state, "git merge --abort").nextState;
+    expect(state.mergeHead).toBeNull();
+    expect(state.workingDirectory["index.js"]?.content).toBe("B");
+  });
+
+  it("supports restore --staged and diff --staged", () => {
+    let state = runAll(createInitialState(), [
+      "git init",
+      "git add .",
+      'git commit -m "init"',
+      'echo "changed" > index.js',
+      "git add index.js",
+    ]);
+    const diff = run(state, "git diff --staged").output.join("\n");
+    expect(diff).toContain("index.js");
+
+    state = run(state, "git restore --staged index.js").nextState;
+    expect(state.stagingArea["index.js"]).toBe("console.log('Hello, Git!');");
+  });
+
+  it("gives a helpful message for unsupported remote commands", () => {
+    const state = run(createInitialState(), "git init").nextState;
+    const { output, error } = run(state, "git push");
+    expect(error).toBe(true);
+    expect(output.join("\n")).toContain("local-only");
   });
 });
 

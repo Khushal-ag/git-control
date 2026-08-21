@@ -64,9 +64,8 @@ export function FileExplorer() {
   const committedFiles = activeCommit ? activeCommit.files : {};
 
   // Staged snapshot can differ from HEAD even when WD state is "modified" again.
-  const workingFiles = Object.values(gitState.workingDirectory).filter(
-    (file) => file.state !== "staged",
-  );
+  // Keep staged files visible in Working Directory — staging does not remove them.
+  const workingFiles = Object.values(gitState.workingDirectory);
   const stagedFiles = Object.keys(gitState.stagingArea)
     .filter((path) => gitState.stagingArea[path] !== committedFiles[path])
     .map((path) => ({
