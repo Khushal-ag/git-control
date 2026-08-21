@@ -180,11 +180,11 @@ export const lessons: Lesson[] = [
     steps: [
       {
         title: "Bringing History Together",
-        explanation: `Once work on a feature branch is completed, you want to merge it back into your primary branch (usually \`main\`).\n\nThere are two main merge scenarios:\n1. **Fast-forward**: Your current branch hasn't moved since the branch you're merging in was created, so it has no commits of its own to reconcile. Git just slides your branch pointer forward to match, no new commit needed.\n2. **Three-way merge**: Both branches have progressed independently since they diverged. Git creates a new **merge commit** with two parents to tie them back together.\n\nClick **Next** to try a Fast-forward merge.`,
+        explanation: `Once work on a feature branch is completed, you want to merge it back into your primary branch (usually \`main\`).\n\nThere are two main merge scenarios:\n1. **Fast-forward**: Your current branch hasn't moved since the branch you're merging in was created. Git just slides your branch pointer forward to match. No new commit is created.\n2. **Three-way merge**: Both branches have new commits since they diverged. Git creates a **merge commit** with two parents to join them.\n\nYou'll try each one. First a fast-forward, then a clean three-way merge, then a three-way merge that hits a conflict.\n\nClick **Next** to set up a feature branch.`,
       },
       {
         title: "Preparing a Feature Branch",
-        explanation: `To see a Fast-forward merge in action, let's first create a feature branch and add a commit to it, simulating completed feature work.\n\n**Steps to perform:**\n1. **Create and switch to a feature branch:**\n\`git checkout -b feature/login\`\n\n2. **Make a change:**\n\`echo "// login page logic" >> index.js\`\n\n3. **Stage and commit the change:**\n\`git add index.js\`\n\`git commit -m "Add login framework"\``,
+        explanation: `To see a fast-forward, \`feature/login\` must move ahead while \`main\` stays put.\n\n**Steps to perform:**\n1. **Create and switch to a feature branch:**\n\`git checkout -b feature/login\`\n\n2. **Make a change:**\n\`echo "// login page logic" >> index.js\`\n\n3. **Stage and commit the change:**\n\`git add index.js\`\n\`git commit -m "Add login framework"\`\n\nIn the graph, \`feature/login\` should sit one commit ahead of \`main\`.`,
         objective: {
           description: "Create feature/login and commit on it, ahead of main.",
           validate: (state: GitState) => {
@@ -207,7 +207,7 @@ export const lessons: Lesson[] = [
       },
       {
         title: "Switching back to Main",
-        explanation: `Now that \`feature/login\` has progressed ahead of \`main\`, we need to switch back to \`main\` before we can merge those changes into it.\n\n**Step to perform:**\n1. **Checkout the main branch:** Switch the active workspace back to main:\n\`git checkout main\``,
+        explanation: `Merges always apply *into the branch you are on*. \`feature/login\` is ahead, so switch back to \`main\` before merging.\n\n**Step to perform:**\n1. **Checkout main:**\n\`git checkout main\`\n\n\`HEAD\` / \`main\` return to the older commit. \`feature/login\` stays ahead.`,
         objective: {
           description: "Checkout the 'main' branch.",
           validate: (state: GitState) => {
@@ -225,7 +225,7 @@ export const lessons: Lesson[] = [
       },
       {
         title: "Fast-forward Merge",
-        explanation: `Now that you're on \`main\`, let's merge the changes from \`feature/login\`.\n\nSince \`main\` hasn't had any commits since you branched off, this will be a simple Fast-forward.\n\n**Step to perform:**\n1. **Merge the feature branch:** Pull feature/login's commits into main:\n\`git merge feature/login\`\n\nObserve how the \`main\` pointer simply jumps to match \`feature/login\`!`,
+        explanation: `Now merge \`feature/login\` into \`main\`.\n\nBecause \`main\` has no unique commits since the branch point, Git can **fast-forward**: it moves the \`main\` pointer to the same commit as \`feature/login\`. History stays a straight line. No merge commit appears.\n\n**Step to perform:**\n1. **Merge the feature branch:**\n\`git merge feature/login\`\n\nWatch \`main\` jump forward to match \`feature/login\`.`,
         objective: {
           description: "Merge feature/login into main.",
           validate: (state: GitState) => {
@@ -245,8 +245,47 @@ export const lessons: Lesson[] = [
         commandPreset: "git merge feature/login",
       },
       {
+        title: "A Clean Three-way Merge",
+        explanation: `Fast-forward only works when one side has not moved. If *both* branches gain commits, Git needs a **three-way merge** and creates a new commit with two parents.\n\nWe'll edit *different* files so the merge succeeds with no conflict:\n\n1. **Branch for docs work:**\n\`git checkout -b feature/docs\`\n\n2. **Change README only:**\n\`echo "Login docs" >> README.md\`\n\`git add README.md\`\n\`git commit -m "Add login docs"\`\n\n3. **Return to main and change index.js only:**\n\`git checkout main\`\n\`echo "// helper util" >> index.js\`\n\`git add index.js\`\n\`git commit -m "Add helper util"\`\n\n4. **Merge the docs branch:**\n\`git merge feature/docs\`\n\nThe graph should fork, then join with a merge commit. Both \`README.md\` and \`index.js\` changes should be present.`,
+        objective: {
+          description:
+            "Create diverging commits on different files, then merge feature/docs into main.",
+          validate: (state: GitState) => {
+            const mainId = state.branches["main"]?.commitId || "";
+            const mainCommit = mainId ? state.commits[mainId] : undefined;
+            const docsId = state.branches["feature/docs"]?.commitId || "";
+            return !!(
+              state.currentBranch === "main" &&
+              mainCommit &&
+              mainCommit.parentIds.length > 1 &&
+              docsId &&
+              mainCommit.parentIds.includes(docsId) &&
+              mainCommit.files["README.md"]?.includes("Login docs") &&
+              mainCommit.files["index.js"]?.includes("helper util") &&
+              state.reflog.some((e) =>
+                e.action.includes("merge feature/docs"),
+              ) &&
+              !Object.values(state.workingDirectory).some((f) =>
+                f.content.includes("<<<<<<<"),
+              )
+            );
+          },
+        },
+        commandPreset: [
+          "git checkout -b feature/docs",
+          'echo "Login docs" >> README.md',
+          "git add README.md",
+          'git commit -m "Add login docs"',
+          "git checkout main",
+          'echo "// helper util" >> index.js',
+          "git add index.js",
+          'git commit -m "Add helper util"',
+          "git merge feature/docs",
+        ],
+      },
+      {
         title: "Triggering a Merge Conflict",
-        explanation: `What happens if you modify the same line of a file in two different branches?\n\nLet's create a merge conflict step-by-step:\n\n1. **Create and switch to a new branch:** We'll name it \`branch-a\`:\n\`git checkout -b branch-a\`\n\n2. **Make a conflicting edit:** Write "A" to our file on this branch, then stage and commit it:\n\`echo "A" > index.js\`\n\`git add index.js\`\n\`git commit -m "edit A"\`\n\n3. **Switch back to main:** Go back to the main branch to make a different edit:\n\`git checkout main\`\n\n4. **Make a different edit on main:** Write "B" to the same line, then stage and commit it:\n\`echo "B" > index.js\`\n\`git add index.js\`\n\`git commit -m "edit B"\`\n\n5. **Try to merge:** Attempt to merge \`branch-a\` into your active \`main\` branch:\n\`git merge branch-a\``,
+        explanation: `A three-way merge only auto-combines cleanly when the edits do not clash. If both sides change the *same lines* of the same file, Git pauses and asks you to decide.\n\n1. **Create and switch to a branch:**\n\`git checkout -b branch-a\`\n\n2. **Rewrite index.js on this branch:**\n\`echo "A" > index.js\`\n\`git add index.js\`\n\`git commit -m "edit A"\`\n\n3. **Switch back to main:**\n\`git checkout main\`\n\n4. **Rewrite the same file differently on main:**\n\`echo "B" > index.js\`\n\`git add index.js\`\n\`git commit -m "edit B"\`\n\n5. **Merge and hit the conflict:**\n\`git merge branch-a\`\n\nYou should see conflict markers in \`index.js\` and a paused merge (no merge commit yet).`,
         objective: {
           description:
             "Trigger a merge conflict by running git merge branch-a.",
@@ -270,7 +309,7 @@ export const lessons: Lesson[] = [
       },
       {
         title: "Resolving Conflicts",
-        explanation: `Git has paused the merge and outputted: \n\`Automatic merge failed; fix conflicts and then commit the result.\`\n\nLook at \`index.js\` in the files panel. Git added conflict markers, and a resolver dialog opens so you can compare both versions.\n\nLet's resolve the conflict step-by-step:\n\n1. **Resolve the content:** In the dialog, pick Accept Ours, Accept Theirs, or Keep Both (or write the final content yourself):\n\`echo "Resolved Content" > index.js\`\n\n2. **Stage the resolution:** Tell Git the conflict in this file is resolved:\n\`git add index.js\`\n\n3. **Complete the merge commit:** Create the final merge commit snapshot:\n\`git commit -m "Resolve merge conflict"\``,
+        explanation: `Git paused with: \n\`Automatic merge failed; fix conflicts and then commit the result.\`\n\n\`index.js\` contains conflict markers, and the resolver dialog lets you compare both sides (\`B\` from \`main\` / HEAD, \`A\` from \`branch-a\`).\n\n1. **Choose the final content** (dialog buttons, or overwrite the file):\n\`echo "Resolved Content" > index.js\`\n\n2. **Stage the resolved file:**\n\`git add index.js\`\n\n3. **Finish the merge with a commit:**\n\`git commit -m "Resolve merge conflict"\`\n\nThat creates the merge commit: one node with **two parents**, tying \`main\` and \`branch-a\` back together.`,
         objective: {
           description: "Resolve the conflict, stage the file, and commit.",
           validate: (state: GitState) => {

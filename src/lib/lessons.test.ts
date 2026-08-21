@@ -314,6 +314,46 @@ describe("objectives stay pending until the key action finishes", () => {
     );
   });
 
+  it("merging: clean three-way keeps both sides and creates a merge commit", () => {
+    let state = seedLesson("merging");
+    state = runAll(state, [
+      "git checkout -b feature/login",
+      'echo "// login page logic" >> index.js',
+      "git add index.js",
+      'git commit -m "Add login framework"',
+      "git checkout main",
+      "git merge feature/login",
+    ]);
+
+    expect(
+      objective("merging", "A Clean Three-way Merge").validate(state),
+    ).toBe(false);
+
+    state = runAll(state, [
+      "git checkout -b feature/docs",
+      'echo "Login docs" >> README.md',
+      "git add README.md",
+      'git commit -m "Add login docs"',
+      "git checkout main",
+      'echo "// helper util" >> index.js',
+      "git add index.js",
+      'git commit -m "Add helper util"',
+    ]);
+    expect(
+      objective("merging", "A Clean Three-way Merge").validate(state),
+    ).toBe(false);
+
+    state = run(state, "git merge feature/docs");
+    expect(
+      objective("merging", "A Clean Three-way Merge").validate(state),
+    ).toBe(true);
+
+    const tip = state.commits[state.branches.main!.commitId!]!;
+    expect(tip.parentIds.length).toBe(2);
+    expect(tip.files["README.md"]).toContain("Login docs");
+    expect(tip.files["index.js"]).toContain("helper util");
+  });
+
   it("merging: conflict/resolve steps need merge then commit", () => {
     let state = seedLesson("merging");
     state = runAll(state, [
@@ -323,6 +363,15 @@ describe("objectives stay pending until the key action finishes", () => {
       'git commit -m "Add login framework"',
       "git checkout main",
       "git merge feature/login",
+      "git checkout -b feature/docs",
+      'echo "Login docs" >> README.md',
+      "git add README.md",
+      'git commit -m "Add login docs"',
+      "git checkout main",
+      'echo "// helper util" >> index.js',
+      "git add index.js",
+      'git commit -m "Add helper util"',
+      "git merge feature/docs",
       "git checkout -b branch-a",
       'echo "A" > index.js',
       "git add index.js",
@@ -774,6 +823,15 @@ describe("lesson flow edge cases", () => {
       'git commit -m "Add login framework"',
       "git checkout main",
       "git merge feature/login",
+      "git checkout -b feature/docs",
+      'echo "Login docs" >> README.md',
+      "git add README.md",
+      'git commit -m "Add login docs"',
+      "git checkout main",
+      'echo "// helper util" >> index.js',
+      "git add index.js",
+      'git commit -m "Add helper util"',
+      "git merge feature/docs",
       "git checkout -b branch-a",
       'echo "A" > index.js',
       "git add index.js",
